@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stock Tracker - Buy/Sell & P/L</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-analytics-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#0f172a;
+    --panel:#1e293b;
+    --panel-2:#273449;
+    --border:#33455e;
+    --text:#e6edf5;
+    --muted:#93a4bd;
+    --green:#22c55e;
+    --green-bg:rgba(34,197,94,0.12);
+    --red:#ef4444;
+    --red-bg:rgba(239,68,68,0.12);
+    --amber:#f59e0b;
+    --amber-bg:rgba(245,158,11,0.12);
+    --accent:#3b82f6;
+    --accent-2:#8b5cf6;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:"Segoe UI","Tahoma",Arial,sans-serif;
+    background:linear-gradient(160deg,#0b1220,#141d33 60%,#0b1220);
+    color:var(--text);
+    min-height:100vh;
+    padding:24px;
+  }
+  h1{margin:0 0 4px;font-size:26px;}
+  .sub{color:var(--muted);margin:0 0 24px;font-size:14px;}
+  .container{max-width:1360px;margin:0 auto;}
+
+  .tabs{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;}
+  .tab-btn{
+    background:var(--panel);
+    color:var(--muted);
+    border:1px solid var(--border);
+    padding:10px 18px;
+    border-radius:10px;
+    cursor:pointer;
+    font-size:14px;
+    font-weight:600;
+    transition:.15s;
+  }
+  .tab-btn.active{background:var(--accent);color:white;border-color:var(--accent);}
+  .tab-btn:hover:not(.active){background:var(--panel-2);color:var(--text);}
+
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:22px;
+    margin-bottom:20px;
+    display:none;
+  }
+  .panel.active{display:block;}
+
+  .summary-grid{
+    display:grid;
+    grid-template-columns:repeat(8,minmax(0,1fr));
+    gap:8px;
+    margin-bottom:20px;
+    overflow-x:auto;
+  }
+  .stat-card{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:10px 10px;
+    min-width:0;
+  }
+  .stat-card .label{color:var(--muted);font-size:12px;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .stat-card .value{font-size:16px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .stat-card .value.value-emphasis{font-weight:800;text-decoration:underline;}
+  .stat-card .value.value-link{
+    background:none;
+    border:none;
+    padding:0;
+    font-family:inherit;
+    cursor:pointer;
+    display:block;
+    text-align:left;
+  }
+  .stat-card .value.value-link:hover{opacity:.8;}
+  .pos{color:var(--green);}
+  .neg{color:var(--red);}
+
+  form{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;align-items:end;}
+  label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px;}
+  input,select{
+    width:100%;
+    padding:10px 12px;
+    border-radius:9px;
+    border:1px solid var(--border);
+    background:var(--panel-2);
+    color:var(--text);
+    font-size:14px;
+  }
+  input:focus,select:focus{outline:none;border-color:var(--accent);}
+
+  .btn{
+    padding:10px 18px;
+    border-radius:9px;
+    border:none;
+    cursor:pointer;
+    font-weight:700;
+    font-size:14px;
+  }
+  .btn-primary{background:var(--accent);color:white;}
+  .btn-primary:hover{background:#2f6fe0;}
+  .btn-ghost{background:transparent;border:1px solid var(--border);color:var(--muted);}
+  .btn-ghost:hover{color:var(--text);border-color:var(--accent);}
+  .btn-danger-icon{background:transparent;border:none;color:var(--red);cursor:pointer;font-size:16px;}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  thead th{
+    text-align:left;
+    color:var(--muted);
+    font-weight:600;
+    padding:10px 8px;
+    border-bottom:1px solid var(--border);
+    white-space:nowrap;
+  }
+  tbody td{
+    padding:10px 8px;
+    border-bottom:1px solid rgba(255,255,255,0.05);
+    white-space:nowrap;
+  }
+  tbody tr:hover{background:rgba(255,255,255,0.03);}
+  .table-wrap{overflow-x:auto;}
+
+  .badge{
+    display:inline-block;
+    padding:4px 10px;
+    border-radius:999px;
+    font-size:12px;
+    font-weight:700;
+    white-space:nowrap;
+  }
+  .badge-up{background:var(--green-bg);color:var(--green);}
+  .badge-down{background:var(--red-bg);color:var(--red);}
+  .badge-watch{background:rgba(148,163,184,0.15);color:var(--muted);}
+  .badge-closed{background:rgba(139,92,246,0.15);color:var(--accent-2);}
+
+  tr.row-closed{background:var(--green-bg);}
+  tr.row-closed:hover{background:var(--green-bg);}
+  .price-input:disabled{opacity:.5;cursor:not-allowed;}
+
+  .stat-card .wallet-input{
+    width:100%;
+    padding:5px 6px;
+    font-size:15px;
+    font-weight:700;
+    background:var(--panel-2);
+    border:1px solid var(--border);
+    border-radius:8px;
+    color:var(--text);
+  }
+  .stat-card .wallet-input:focus{outline:none;border-color:var(--accent);}
+
+  .backup-row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;}
+  .file-label{
+    display:inline-block;
+    padding:10px 18px;
+    border-radius:9px;
+    border:1px solid var(--border);
+    color:var(--muted);
+    cursor:pointer;
+    font-weight:700;
+    font-size:14px;
+    background:transparent;
+  }
+  .file-label:hover{color:var(--text);border-color:var(--accent);}
+
+  .price-cell{display:flex;flex-direction:column;gap:4px;}
+  .price-input{
+    width:95px;
+    padding:6px 8px;
+    font-size:13px;
+  }
+  .updated-at{font-size:11px;color:var(--muted);}
+  .empty{
+    text-align:center;
+    color:var(--muted);
+    padding:30px 10px;
+  }
+  .note{color:var(--muted);font-size:12.5px;margin-top:10px;line-height:1.7;}
+  .section-title{font-size:16px;font-weight:700;margin:0 0 14px;}
+  .panel-header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;}
+  .panel-header .section-title{margin:0;}
+  .filter-bar{display:none;align-items:center;gap:10px;}
+  .filter-bar.show{display:flex;}
+
+  .symbol-link{
+    background:none;
+    border:none;
+    padding:0;
+    font-weight:700;
+    font-size:inherit;
+    cursor:pointer;
+    text-decoration:underline;
+    text-decoration-style:dotted;
+    text-underline-offset:3px;
+  }
+  .symbol-link:hover{opacity:.8;}
+  .stat-label-link{
+    background:none;
+    border:none;
+    padding:0;
+    color:var(--muted);
+    font-size:12px;
+    cursor:pointer;
+    text-decoration:underline;
+    text-decoration-style:dotted;
+    text-underline-offset:3px;
+    margin-bottom:4px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    max-width:100%;
+    display:block;
+  }
+  .stat-label-link:hover{color:var(--text);}
+  @media (max-width:900px){
+    .summary-grid{grid-template-columns:repeat(8,minmax(120px,1fr));}
+  }
+  @keyframes rowFlash{
+    0%{background:rgba(59,130,246,0.35);}
+    100%{background:transparent;}
+  }
+  tr.highlight-row{animation:rowFlash 1.6s ease-out;}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>📈 Stock Tracker</h1>
+  <p class="sub">Log your buy/sell trades and track profitability per stock — all amounts in EGP. <span id="syncStatus" style="color:var(--muted);">🔄 Connecting to cloud…</span></p>
+
+  <div class="summary-grid" id="summaryGrid"></div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="add">➕ Add Trade</button>
+    <button class="tab-btn" data-tab="portfolio">💼 Portfolio</button>
+    <button class="tab-btn" data-tab="history">🧾 Transaction History</button>
+    <button class="tab-btn" data-tab="backup">💾 Backup &amp; Export</button>
+  </div>
+
+  <!-- Add Transaction -->
+  <div class="panel active" id="tab-add">
+    <p class="section-title">Add a Buy or Sell Trade</p>
+    <form id="txForm">
+      <div>
+        <label>Stock Name / Ticker</label>
+        <input type="text" id="symbol" placeholder="e.g. COMI" list="symbolSuggestions" autocomplete="off"
+          onfocus="clearSymbolForReselect(this)" onblur="restoreSymbolIfEmpty(this)" required>
+        <datalist id="symbolSuggestions"></datalist>
+      </div>
+      <div>
+        <label>Transaction Type</label>
+        <select id="type">
+          <option value="buy">Buy</option>
+          <option value="sell">Sell</option>
+        </select>
+      </div>
+      <div style="grid-column:1/-1;margin-top:-6px;">
+        <span class="note" id="availableQtyNote" style="margin:0;"></span>
+      </div>
+      <div>
+        <label>Quantity</label>
+        <input type="number" id="qty" min="0.0001" step="any" placeholder="Number of shares" required>
+      </div>
+      <div>
+        <label>Price per Share (EGP)</label>
+        <input type="number" id="price" min="0" step="any" placeholder="Unit price" required>
+      </div>
+      <div>
+        <label>Commission / Fees (EGP)</label>
+        <input type="number" id="commission" min="0" step="any" placeholder="0.00" value="0">
+      </div>
+      <div>
+        <label>Total (EGP)</label>
+        <input type="text" id="totalPreview" value="0.00 EGP" readonly style="opacity:.85;">
+      </div>
+      <div>
+        <label>Date</label>
+        <input type="date" id="date" required>
+      </div>
+      <div>
+        <label>Notes (optional)</label>
+        <input type="text" id="notes" placeholder="Note...">
+      </div>
+      <div>
+        <button type="submit" class="btn btn-primary" style="width:100%;">Save Trade</button>
+      </div>
+    </form>
+    <p class="note">Commission on a buy is added to your cost basis; commission on a sell is deducted from your proceeds — both affect profitability.<br>
+    <strong>Sell orders are blocked</strong> if the quantity exceeds what you currently hold for that stock — the trade will not be saved and you'll see an error instead.</p>
+  </div>
+
+  <!-- Portfolio -->
+  <div class="panel" id="tab-portfolio">
+    <div class="panel-header">
+      <p class="section-title">Current Portfolio</p>
+      <div class="filter-bar" id="portfolioFilterBar">
+        <span class="note" style="margin:0;" id="portfolioFilterLabel"></span>
+        <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="clearPortfolioFilter()">Show All</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Stock</th>
+            <th>Current Qty</th>
+            <th>Avg. Buy Price</th>
+            <th>Current Price</th>
+            <th>Stop Loss (−5%)</th>
+            <th>Target 1 (+3%)</th>
+            <th>Target 2 (+6%)</th>
+            <th>Current Value</th>
+            <th>Unrealized P/L</th>
+            <th>Realized P/L</th>
+            <th>Recommendation</th>
+          </tr>
+        </thead>
+        <tbody id="portfolioBody"></tbody>
+      </table>
+    </div>
+    <p class="note">Enter your <strong>Current Price</strong> whenever you check the market — Unrealized P/L is always calculated from that latest value, and the timestamp under it shows when it was last updated. <strong>Stop Loss / Target 1 / Target 2</strong> are calculated automatically from your average buy price (−5% / +3% / +6%) and can't be edited manually. <strong>Recommendation</strong> flags "Sell — Stop Loss hit", "Sell — Target 1 reached" or "Sell — Target 2 reached" once the current price crosses one of those levels, otherwise it shows "Hold" — each alongside your overall gain/loss as a % of your average buy price (▲ for a gain, ▼ for a loss; Realized P/L is used instead once a stock is fully sold). Click the <strong>Unrealized P/L</strong> or <strong>Realized P/L</strong> label above to filter this table to just those stocks. Fully sold (closed) positions are highlighted green with their <strong>Current Price</strong> field locked, and their <strong>Recommendation</strong> badge uses a distinct color from "Hold ▲/▼" so closed positions stand out.</p>
+  </div>
+
+  <!-- History -->
+  <div class="panel" id="tab-history">
+    <div class="panel-header">
+      <p class="section-title">All Transactions</p>
+      <div class="filter-bar" id="historyFilterBar">
+        <span class="note" style="margin:0;">Showing transactions for <strong id="historyFilterLabel"></strong></span>
+        <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="clearHistoryFilter()">Show All</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Stock</th>
+            <th>Type</th>
+            <th>Quantity</th>
+            <th>Price (EGP)</th>
+            <th>Commission (EGP)</th>
+            <th>Net Total (EGP)</th>
+            <th>Notes</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="historyBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Backup & Export -->
+  <div class="panel" id="tab-backup">
+    <p class="section-title">Full Backup (JSON)</p>
+    <div class="backup-row">
+      <button class="btn btn-primary" onclick="exportBackup()">⬇️ Download Backup (JSON)</button>
+      <label class="file-label" for="restoreFile">⬆️ Restore from Backup</label>
+      <input type="file" id="restoreFile" accept="application/json" style="display:none;" onchange="importBackup(this.files[0])">
+    </div>
+    <p class="note">The backup file contains every transaction, current prices, price update times, and your wallet balance. Restoring a backup <strong>completely replaces</strong> your current cloud data — you'll be asked to confirm before it happens.</p>
+
+    <p class="section-title" style="margin-top:26px;">Export to Excel</p>
+    <div class="backup-row">
+      <button class="btn btn-primary" onclick="exportExcel()">📊 Export to Excel (.xlsx)</button>
+    </div>
+    <p class="note">Creates an Excel workbook with three sheets: Portfolio, Transaction History, and Summary (including Wallet and Net Worth).</p>
+  </div>
+
+</div>
+
+<script>
+// ---------- Firebase setup ----------
+const firebaseConfig = {
+  apiKey: "AIzaSyDmFWuYAnIzb0orASduKDA9QAM0owuqwiA",
+  authDomain: "stock-a0fb3.firebaseapp.com",
+  databaseURL: "https://stock-a0fb3-default-rtdb.firebaseio.com",
+  projectId: "stock-a0fb3",
+  storageBucket: "stock-a0fb3.firebasestorage.app",
+  messagingSenderId: "763699840336",
+  appId: "1:763699840336:web:ebc7da3308452225a95855",
+  measurementId: "G-PVQWVP1BJL"
+};
+firebase.initializeApp(firebaseConfig);
+try{ firebase.analytics(); }catch(e){ /* analytics may fail if blocked, that's fine */ }
+const db = firebase.database();
+const dataRef = db.ref('stockTrackerData');
+
+function emptyData(){
+  return { transactions: [], currentPrices: {}, priceUpdatedAt: {}, wallet: 0 };
+}
+
+function setSyncStatus(text, color){
+  const el = document.getElementById('syncStatus');
+  if(el){ el.textContent = text; el.style.color = color; }
+}
+
+function saveData(){
+  dataRef.set(data).catch(err=>{
+    console.error('Firebase save error:', err);
+    setSyncStatus('⚠️ Save failed — check connection', 'var(--red)');
+    alert('Could not save to the cloud database. Check your internet connection and Firebase security rules.');
+  });
+}
+
+let data = emptyData();
+let dataLoaded = false;
+let historyFilterSymbol = null;
+let portfolioFilter = null; // null | 'unrealized' | 'realized'
+
+// One-time migration from an earlier localStorage-only version of this file, if present
+function migrateLocalStorageIfNeeded(){
+  try{
+    const old = localStorage.getItem('stocks_tracker_data_v3') ||
+                localStorage.getItem('stocks_tracker_data_v2') ||
+                localStorage.getItem('stocks_tracker_data_v1');
+    if(!old) return null;
+    const parsed = JSON.parse(old);
+    (parsed.transactions||[]).forEach(t=>{ if(t.commission===undefined) t.commission = 0; });
+    return {
+      transactions: parsed.transactions||[],
+      currentPrices: parsed.currentPrices||{},
+      priceUpdatedAt: parsed.priceUpdatedAt||{}
+    };
+  }catch(e){ return null; }
+}
+
+dataRef.on('value', (snapshot)=>{
+  const val = snapshot.val();
+  if(val){
+    data = val;
+    if(!data.transactions) data.transactions = [];
+    if(!data.currentPrices) data.currentPrices = {};
+    if(!data.priceUpdatedAt) data.priceUpdatedAt = {};
+    if(data.wallet === undefined || data.wallet === null) data.wallet = 0;
+  } else if(!dataLoaded){
+    // nothing in the cloud yet — offer to bring over any old local data once
+    const migrated = migrateLocalStorageIfNeeded();
+    data = migrated || emptyData();
+    if(migrated) saveData();
+  } else {
+    data = emptyData();
+  }
+  dataLoaded = true;
+  setSyncStatus('☁️ Synced', 'var(--green)');
+  renderAll();
+}, (err)=>{
+  console.error('Firebase read error:', err);
+  setSyncStatus('⚠️ Offline — not connected to cloud', 'var(--red)');
+});
+
+
+// ---------- Tabs ----------
+function switchTab(tabName){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  const btn = document.querySelector(`.tab-btn[data-tab="${tabName}"]`);
+  if(btn) btn.classList.add('active');
+  document.getElementById('tab-'+tabName).classList.add('active');
+  if(tabName === 'portfolio') renderPortfolio();
+  if(tabName === 'history') renderHistory();
+}
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=> switchTab(btn.dataset.tab));
+});
+
+function goToHistory(sym){
+  historyFilterSymbol = sym;
+  switchTab('history');
+}
+function clearHistoryFilter(){
+  historyFilterSymbol = null;
+  renderHistory();
+}
+function goToPortfolioFiltered(filterType){
+  portfolioFilter = filterType;
+  switchTab('portfolio');
+}
+function clearPortfolioFilter(){
+  portfolioFilter = null;
+  renderPortfolio();
+}
+
+// ---------- Symbol colors ----------
+const SYMBOL_COLORS = ['#60a5fa','#f472b6','#34d399','#fbbf24','#a78bfa','#22d3ee','#fb923c','#4ade80','#f87171','#818cf8','#e879f9','#2dd4bf'];
+function symbolColor(sym){
+  let hash = 0;
+  for(let i=0;i<sym.length;i++){ hash = sym.charCodeAt(i) + ((hash << 5) - hash); }
+  const idx = Math.abs(hash) % SYMBOL_COLORS.length;
+  return SYMBOL_COLORS[idx];
+}
+function symbolLink(sym){
+  return `<button type="button" class="symbol-link" style="color:${symbolColor(sym)}" onclick="goToHistory('${sym}')">${sym}</button>`;
+}
+
+// default date = today
+document.getElementById('date').value = new Date().toISOString().slice(0,10);
+
+// ---------- Live Total preview ----------
+function updateTotalPreview(){
+  const type = document.getElementById('type').value;
+  const qty = parseFloat(document.getElementById('qty').value) || 0;
+  const price = parseFloat(document.getElementById('price').value) || 0;
+  const commission = parseFloat(document.getElementById('commission').value) || 0;
+  const gross = qty * price;
+  const total = type === 'buy' ? gross + commission : gross - commission;
+  document.getElementById('totalPreview').value = fmt(total) + ' EGP';
+}
+['qty','price','commission'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', updateTotalPreview);
+});
+document.getElementById('type').addEventListener('change', updateTotalPreview);
+
+// ---------- Available quantity hint ----------
+function updateAvailableQtyInfo(){
+  const raw = document.getElementById('symbol').value.trim();
+  const noteEl = document.getElementById('availableQtyNote');
+  if(!raw){ noteEl.textContent = ''; return; }
+  const sym = raw.toUpperCase();
+  const type = document.getElementById('type').value;
+  const holdings = computeHoldings();
+  const qty = holdings[sym] ? holdings[sym].qty : 0;
+  if(type === 'sell'){
+    noteEl.textContent = qty > 0
+      ? `Available to sell for ${sym}: ${round(qty)} share(s).`
+      : `You currently hold no shares of ${sym} — a sell can't be saved.`;
+  } else {
+    noteEl.textContent = qty > 0
+      ? `You currently hold ${round(qty)} share(s) of ${sym}.`
+      : `No existing position in ${sym} yet — this will be a new holding.`;
+  }
+}
+document.getElementById('symbol').addEventListener('input', updateAvailableQtyInfo);
+document.getElementById('type').addEventListener('change', updateAvailableQtyInfo);
+
+// ---------- Form ----------
+document.getElementById('txForm').addEventListener('submit', function(e){
+  e.preventDefault();
+  const symbol = document.getElementById('symbol').value.trim();
+  const type = document.getElementById('type').value;
+  const qty = parseFloat(document.getElementById('qty').value);
+  const price = parseFloat(document.getElementById('price').value);
+  const commission = parseFloat(document.getElementById('commission').value) || 0;
+  const date = document.getElementById('date').value;
+  const notes = document.getElementById('notes').value.trim();
+
+  if(!symbol || !qty || qty<=0 || price<0 || commission<0 || !date){
+    alert('Please make sure all required fields are filled in correctly.');
+    return;
+  }
+
+  if(type === 'sell'){
+    const holdings = computeHoldings();
+    const key = symbol.toUpperCase();
+    const current = holdings[key] ? holdings[key].qty : 0;
+    if(qty > current + 0.0000001){
+      alert(`Transaction blocked: available quantity of "${symbol}" is only ${round(current)}, but you're trying to sell ${qty}. The trade was not saved.`);
+      return;
+    }
+  }
+
+  data.transactions.push({
+    id: Date.now() + Math.random().toString(16).slice(2),
+    symbol: symbol.toUpperCase(),
+    type, qty, price, commission, date, notes
+  });
+  saveData();
+  this.reset();
+  document.getElementById('date').value = new Date().toISOString().slice(0,10);
+  document.getElementById('commission').value = 0;
+  updateTotalPreview();
+  updateAvailableQtyInfo();
+  renderAll();
+  alert('Trade saved successfully ✅');
+});
+
+// ---------- Core calculations ----------
+function computeHoldings(){
+  // returns { SYMBOL: {qty, avgCost, realizedPL, totalBoughtQty} }
+  const sorted = [...data.transactions].sort((a,b)=> new Date(a.date) - new Date(b.date));
+  const holdings = {};
+  sorted.forEach(tx=>{
+    if(!holdings[tx.symbol]){
+      holdings[tx.symbol] = { qty:0, avgCost:0, realizedPL:0, totalBoughtQty:0 };
+    }
+    const h = holdings[tx.symbol];
+    const commission = tx.commission || 0;
+    if(tx.type === 'buy'){
+      const totalCostBefore = h.qty * h.avgCost;
+      const newQty = h.qty + tx.qty;
+      const totalCostAfter = totalCostBefore + (tx.qty * tx.price) + commission;
+      h.avgCost = newQty > 0 ? totalCostAfter / newQty : 0;
+      h.qty = newQty;
+      h.totalBoughtQty += tx.qty;
+    } else {
+      const sellQty = Math.min(tx.qty, h.qty);
+      const commissionAllocated = tx.qty > 0 ? commission * (sellQty / tx.qty) : 0;
+      const netProceeds = (sellQty * tx.price) - commissionAllocated;
+      h.realizedPL += netProceeds - (h.avgCost * sellQty);
+      h.qty = h.qty - sellQty;
+      if(h.qty <= 0.0000001){ h.qty = 0; }
+    }
+  });
+  return holdings;
+}
+
+function getCurrentPrice(symbol){
+  if(data.currentPrices[symbol] !== undefined) return data.currentPrices[symbol];
+  const txs = data.transactions.filter(t=>t.symbol===symbol);
+  if(txs.length){
+    const sorted = [...txs].sort((a,b)=> new Date(b.date)-new Date(a.date));
+    return sorted[0].price;
+  }
+  return 0;
+}
+
+// Auto-calculated levels based on average buy price (locked, not editable)
+function getLevels(avgCost){
+  if(!avgCost || avgCost <= 0){
+    return { stopLoss: null, target1: null, target2: null };
+  }
+  return {
+    stopLoss: avgCost * 0.95,
+    target1: avgCost * 1.03,
+    target2: avgCost * 1.06
+  };
+}
+
+function round(n){ return Math.round(n*100)/100; }
+function fmt(n){
+  if(n===undefined || n===null || isNaN(n)) return '-';
+  return n.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+function fmtEGP(n){
+  if(n===undefined || n===null || isNaN(n)) return '-';
+  return fmt(n) + ' EGP';
+}
+function fmtTimestamp(iso){
+  if(!iso) return 'never updated (using last trade price)';
+  const d = new Date(iso);
+  return 'updated ' + d.toLocaleString('en-US', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
+}
+
+// ---------- Recommendation: P/L % vs Avg Buy Price, with up/down arrow ----------
+function getPLIndicator(h, cp){
+  let pct, basisValid = true;
+  if(h.qty > 0){
+    const basis = h.qty * h.avgCost;
+    if(basis <= 0){ basisValid = false; }
+    else{
+      const unrealized = h.qty * (cp - h.avgCost);
+      pct = (unrealized / basis) * 100;
+    }
+  } else {
+    const basis = (h.totalBoughtQty || 0) * h.avgCost;
+    if(basis <= 0){ basisValid = false; }
+    else{
+      pct = (h.realizedPL / basis) * 100;
+    }
+  }
+  if(!basisValid || pct === undefined || isNaN(pct)){
+    return {label:'—', cls:'badge-watch'};
+  }
+  const arrow = pct >= 0 ? '▲' : '▼';
+  const cls = pct >= 0 ? 'badge-up' : 'badge-down';
+  const sign = pct >= 0 ? '+' : '';
+  return {label:`${arrow} ${sign}${round(pct)}%`, cls};
+}
+
+// ---------- Recommendation: Stop Loss / Target hit status + P/L % ----------
+function getRecommendation(h, cp){
+  const levels = getLevels(h.avgCost);
+  const pl = getPLIndicator(h, cp);
+
+  if(h.qty > 0){
+    if(levels.stopLoss !== null && cp <= levels.stopLoss){
+      return { label: `Sell — Stop Loss hit ${pl.label}`, cls: 'badge-down' };
+    }
+    if(levels.target2 !== null && cp >= levels.target2){
+      return { label: `Sell — Target 2 reached ${pl.label}`, cls: 'badge-up' };
+    }
+    if(levels.target1 !== null && cp >= levels.target1){
+      return { label: `Sell — Target 1 reached ${pl.label}`, cls: 'badge-up' };
+    }
+    return { label: `Hold ${pl.label}`, cls: pl.cls };
+  }
+  return { label: `Closed ${pl.label}`, cls: 'badge-closed' };
+}
+
+// ---------- Render: Summary ----------
+function renderSummary(){
+  const holdings = computeHoldings();
+  let totalInvested = 0, totalCurrentValue = 0, totalRealized = 0, totalUnrealized = 0;
+  Object.keys(holdings).forEach(sym=>{
+    const h = holdings[sym];
+    const cp = getCurrentPrice(sym);
+    totalInvested += h.qty * h.avgCost;
+    totalCurrentValue += h.qty * cp;
+    totalRealized += h.realizedPL;
+    totalUnrealized += h.qty * (cp - h.avgCost);
+  });
+
+  const wallet = data.wallet || 0;
+  const netWorth = wallet + totalCurrentValue;
+
+  const beforeWallet = [
+    {label:'Stocks in Portfolio', value: Object.values(holdings).filter(h=>h.qty>0).length, cls:''},
+    {label:'Total Capital Invested', value: fmtEGP(totalInvested), cls:''},
+    {label:'Current Portfolio Value', value: fmtEGP(totalCurrentValue), cls:''},
+  ];
+  const afterWallet = [
+    {label:'Unrealized P/L', value: fmtEGP(totalUnrealized), cls: totalUnrealized>=0?'pos':'neg', filter:'unrealized', emphasis:true},
+    {label:'Realized P/L', value: fmtEGP(totalRealized), cls: totalRealized>=0?'pos':'neg', filter:'realized', emphasis:true},
+    {label:'Net P/L', value: fmtEGP(totalRealized + totalUnrealized), cls: (totalRealized + totalUnrealized)>=0?'pos':'neg'},
+  ];
+
+  const cardHtml = c=>{
+    const labelHtml = `<div class="label">${c.label}</div>`;
+    const valueHtml = c.filter
+      ? `<button type="button" class="value ${c.cls}${c.emphasis ? ' value-emphasis' : ''} value-link" onclick="goToPortfolioFiltered('${c.filter}')">${c.value}</button>`
+      : `<div class="value ${c.cls}${c.emphasis ? ' value-emphasis' : ''}">${c.value}</div>`;
+    return `
+    <div class="stat-card">
+      ${labelHtml}
+      ${valueHtml}
+    </div>
+  `;
+  };
+
+  const walletHtml = `
+    <div class="stat-card">
+      <div class="label">Wallet</div>
+      <input type="text" inputmode="decimal" class="wallet-input" value="${fmtEGP(wallet)}" data-raw="${wallet}"
+        onfocus="this.value = this.dataset.raw; this.select();"
+        onblur="updateWallet(this)"
+        placeholder="Cash on hand (EGP)">
+    </div>
+  `;
+  const netWorthHtml = `
+    <div class="stat-card">
+      <div class="label">Net Worth</div>
+      <div class="value">${fmtEGP(netWorth)}</div>
+    </div>
+  `;
+
+  document.getElementById('summaryGrid').innerHTML =
+    beforeWallet.map(cardHtml).join('') +
+    walletHtml +
+    netWorthHtml +
+    afterWallet.map(cardHtml).join('');
+}
+
+function updateWallet(el){
+  const cleaned = el.value.replace(/,/g,'').replace(/EGP/i,'').trim();
+  const val = parseFloat(cleaned);
+  data.wallet = isNaN(val) ? 0 : val;
+  saveData();
+  renderSummary();
+}
+
+// ---------- Render: Portfolio ----------
+function renderPortfolio(){
+  const holdings = computeHoldings();
+  let symbols = Object.keys(holdings);
+
+  const filterBar = document.getElementById('portfolioFilterBar');
+  if(portfolioFilter === 'unrealized'){
+    symbols = symbols.filter(sym => holdings[sym].qty > 0);
+    filterBar.classList.add('show');
+    document.getElementById('portfolioFilterLabel').textContent = 'Showing only stocks with Unrealized P/L (currently held)';
+  } else if(portfolioFilter === 'realized'){
+    symbols = symbols.filter(sym => holdings[sym].realizedPL !== 0);
+    filterBar.classList.add('show');
+    document.getElementById('portfolioFilterLabel').textContent = 'Showing only stocks with Realized P/L (previously sold)';
+  } else {
+    filterBar.classList.remove('show');
+  }
+
+  const tbody = document.getElementById('portfolioBody');
+  if(symbols.length === 0){
+    tbody.innerHTML = `<tr><td colspan="11" class="empty">No matching stocks. Add a buy trade from the "Add Trade" tab.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = symbols.map(sym=>{
+    const h = holdings[sym];
+    const cp = getCurrentPrice(sym);
+    const currentValue = h.qty * cp;
+    const unrealized = h.qty * (cp - h.avgCost);
+    const levels = getLevels(h.avgCost);
+    const rec = getRecommendation(h, cp);
+    const updatedLabel = fmtTimestamp(data.priceUpdatedAt[sym]);
+    const isClosed = h.qty <= 0;
+    return `
+      <tr class="${isClosed ? 'row-closed' : ''}">
+        <td>${symbolLink(sym)}</td>
+        <td>${round(h.qty)}</td>
+        <td>${fmtEGP(h.avgCost)}</td>
+        <td>
+          <div class="price-cell">
+            <input type="number" class="price-input" step="any" value="${cp}" data-symbol="${sym}" ${isClosed ? 'disabled title="Closed position — price locked"' : 'onchange="updatePrice(this)"'}>
+            <span class="updated-at">${updatedLabel}</span>
+          </div>
+        </td>
+        <td>${levels.stopLoss !== null ? fmtEGP(levels.stopLoss) : '-'}</td>
+        <td>${levels.target1 !== null ? fmtEGP(levels.target1) : '-'}</td>
+        <td>${levels.target2 !== null ? fmtEGP(levels.target2) : '-'}</td>
+        <td>${fmtEGP(currentValue)}</td>
+        <td class="${unrealized>=0?'pos':'neg'}">${fmtEGP(unrealized)}</td>
+        <td class="${h.realizedPL>=0?'pos':'neg'}">${fmtEGP(h.realizedPL)}</td>
+        <td><span class="badge ${rec.cls}">${rec.label}</span></td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function updatePrice(el){
+  const sym = el.dataset.symbol;
+  const val = parseFloat(el.value);
+  data.currentPrices[sym] = isNaN(val) ? 0 : val;
+  data.priceUpdatedAt[sym] = new Date().toISOString();
+  saveData();
+  renderSummary();
+  renderPortfolio();
+}
+
+// ---------- Render: History ----------
+function renderHistory(){
+  const tbody = document.getElementById('historyBody');
+  const filterBar = document.getElementById('historyFilterBar');
+  let txs = data.transactions;
+
+  if(historyFilterSymbol){
+    txs = txs.filter(t => t.symbol === historyFilterSymbol);
+    filterBar.classList.add('show');
+    document.getElementById('historyFilterLabel').textContent = historyFilterSymbol;
+  } else {
+    filterBar.classList.remove('show');
+  }
+
+  if(txs.length === 0){
+    const msg = historyFilterSymbol ? `No transactions recorded yet for ${historyFilterSymbol}.` : 'No transactions recorded yet.';
+    tbody.innerHTML = `<tr><td colspan="9" class="empty">${msg}</td></tr>`;
+    return;
+  }
+  const sorted = [...txs].sort((a,b)=> new Date(b.date)-new Date(a.date));
+  tbody.innerHTML = sorted.map(tx=>{
+    const commission = tx.commission || 0;
+    const gross = tx.qty*tx.price;
+    const net = tx.type === 'buy' ? gross + commission : gross - commission;
+    return `
+    <tr>
+      <td>${tx.date}</td>
+      <td>${symbolLink(tx.symbol)}</td>
+      <td><span class="badge ${tx.type==='buy'?'badge-up':'badge-down'}">${tx.type==='buy'?'Buy':'Sell'}</span></td>
+      <td>${round(tx.qty)}</td>
+      <td>${fmt(tx.price)}</td>
+      <td>${fmt(commission)}</td>
+      <td>${fmt(net)}</td>
+      <td>${tx.notes || '-'}</td>
+      <td><button class="btn-danger-icon" onclick="deleteTx('${tx.id}')" title="Delete">🗑️</button></td>
+    </tr>
+  `;
+  }).join('');
+}
+
+function deleteTx(id){
+  if(!confirm('Delete this transaction?')) return;
+  data.transactions = data.transactions.filter(t=>t.id !== id);
+  saveData();
+  renderAll();
+}
+
+// ---------- Full Backup (JSON) ----------
+function exportBackup(){
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    app: 'Stock Tracker',
+    version: 1,
+    data: data
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const stamp = new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
+  a.href = url;
+  a.download = `stock-tracker-backup-${stamp}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function importBackup(file){
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    let parsed;
+    try{
+      parsed = JSON.parse(e.target.result);
+    }catch(err){
+      alert('This file is not valid JSON and could not be read.');
+      document.getElementById('restoreFile').value = '';
+      return;
+    }
+    const incoming = parsed && parsed.data ? parsed.data : parsed;
+    if(!incoming || !Array.isArray(incoming.transactions)){
+      alert('This does not look like a valid Stock Tracker backup file.');
+      document.getElementById('restoreFile').value = '';
+      return;
+    }
+    if(!confirm('This will completely replace your current data (all transactions, prices and wallet) with the contents of this backup. This cannot be undone. Continue?')){
+      document.getElementById('restoreFile').value = '';
+      return;
+    }
+    data = {
+      transactions: incoming.transactions || [],
+      currentPrices: incoming.currentPrices || {},
+      priceUpdatedAt: incoming.priceUpdatedAt || {},
+      wallet: incoming.wallet || 0
+    };
+    saveData();
+    renderAll();
+    document.getElementById('restoreFile').value = '';
+    alert('Backup restored successfully ✅');
+  };
+  reader.readAsText(file);
+}
+
+// ---------- Export to Excel ----------
+function exportExcel(){
+  const holdings = computeHoldings();
+  const symbols = Object.keys(holdings);
+  let totalInvested = 0, totalCurrentValue = 0, totalRealized = 0, totalUnrealized = 0;
+
+  const portfolioRows = symbols.map(sym=>{
+    const h = holdings[sym];
+    const cp = getCurrentPrice(sym);
+    const currentValue = h.qty * cp;
+    const unrealized = h.qty * (cp - h.avgCost);
+    const levels = getLevels(h.avgCost);
+    const rec = getRecommendation(h, cp);
+    totalInvested += h.qty * h.avgCost;
+    totalCurrentValue += currentValue;
+    totalRealized += h.realizedPL;
+    totalUnrealized += unrealized;
+    return {
+      'Stock': sym,
+      'Current Qty': round(h.qty),
+      'Avg. Buy Price': round(h.avgCost),
+      'Current Price': cp,
+      'Stop Loss (-5%)': levels.stopLoss !== null ? round(levels.stopLoss) : '',
+      'Target 1 (+3%)': levels.target1 !== null ? round(levels.target1) : '',
+      'Target 2 (+6%)': levels.target2 !== null ? round(levels.target2) : '',
+      'Current Value': round(currentValue),
+      'Unrealized P/L': round(unrealized),
+      'Realized P/L': round(h.realizedPL),
+      'Recommendation': rec.label
+    };
+  });
+
+  const sortedTx = [...data.transactions].sort((a,b)=> new Date(b.date)-new Date(a.date));
+  const historyRows = sortedTx.map(tx=>{
+    const commission = tx.commission || 0;
+    const gross = tx.qty*tx.price;
+    const net = tx.type === 'buy' ? gross + commission : gross - commission;
+    return {
+      'Date': tx.date,
+      'Stock': tx.symbol,
+      'Type': tx.type === 'buy' ? 'Buy' : 'Sell',
+      'Quantity': round(tx.qty),
+      'Price (EGP)': round(tx.price),
+      'Commission (EGP)': round(commission),
+      'Net Total (EGP)': round(net),
+      'Notes': tx.notes || ''
+    };
+  });
+
+  const wallet = data.wallet || 0;
+  const summaryRows = [
+    {'Metric':'Stocks in Portfolio', 'Value': symbols.filter(s=>holdings[s].qty>0).length},
+    {'Metric':'Total Capital Invested (EGP)', 'Value': round(totalInvested)},
+    {'Metric':'Current Portfolio Value (EGP)', 'Value': round(totalCurrentValue)},
+    {'Metric':'Wallet (EGP)', 'Value': round(wallet)},
+    {'Metric':'Net Worth (EGP)', 'Value': round(wallet + totalCurrentValue)},
+    {'Metric':'Unrealized P/L (EGP)', 'Value': round(totalUnrealized)},
+    {'Metric':'Realized P/L (EGP)', 'Value': round(totalRealized)},
+    {'Metric':'Net P/L (EGP)', 'Value': round(totalUnrealized + totalRealized)}
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(portfolioRows), 'Portfolio');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(historyRows), 'Transaction History');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summaryRows), 'Summary');
+
+  const stamp = new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
+  XLSX.writeFile(wb, `stock-tracker-export-${stamp}.xlsx`);
+}
+
+// ---------- Symbol autocomplete ----------
+function updateSymbolDatalist(){
+  const symbols = [...new Set(data.transactions.map(t=>t.symbol))].sort();
+  const listEl = document.getElementById('symbolSuggestions');
+  listEl.innerHTML = symbols.map(s=>`<option value="${s}"></option>`).join('');
+}
+
+function clearSymbolForReselect(el){
+  el.dataset.prevValue = el.value;
+  el.value = '';
+  updateAvailableQtyInfo();
+}
+function restoreSymbolIfEmpty(el){
+  if(el.value.trim() === '' && el.dataset.prevValue){
+    el.value = el.dataset.prevValue;
+  }
+  el.dataset.prevValue = '';
+  updateAvailableQtyInfo();
+}
+
+// ---------- Init ----------
+function renderAll(){
+  updateSymbolDatalist();
+  renderSummary();
+  renderPortfolio();
+  renderHistory();
+}
+renderAll();
+</script>
+</body>
+</html>
