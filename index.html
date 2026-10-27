@@ -2,1231 +2,422 @@
 <html lang="en" dir="ltr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Stock Tracker - Buy/Sell & P/L</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Stock Portfolio</title>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-analytics-compat.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
-  :root{
-    --bg:#0f172a;
-    --panel:#1e293b;
-    --panel-2:#273449;
-    --border:#33455e;
-    --text:#e6edf5;
-    --muted:#93a4bd;
-    --green:#22c55e;
-    --green-bg:rgba(34,197,94,0.12);
-    --red:#ef4444;
-    --red-bg:rgba(239,68,68,0.12);
-    --amber:#f59e0b;
-    --amber-bg:rgba(245,158,11,0.12);
-    --accent:#3b82f6;
-    --accent-2:#8b5cf6;
-    --radius:14px;
-  }
-  *{box-sizing:border-box;}
-  body{
-    margin:0;
-    font-family:"Segoe UI","Tahoma",Arial,sans-serif;
-    background:linear-gradient(160deg,#0b1220,#141d33 60%,#0b1220);
-    color:var(--text);
-    min-height:100vh;
-    padding:24px;
-  }
-  h1{margin:0 0 4px;font-size:26px;}
-  .sub{color:var(--muted);margin:0 0 24px;font-size:14px;}
-  .container{max-width:1360px;margin:0 auto;}
-
-  .tabs{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;}
-  .tab-btn{
-    background:var(--panel);
-    color:var(--muted);
-    border:1px solid var(--border);
-    padding:10px 18px;
-    border-radius:10px;
-    cursor:pointer;
-    font-size:14px;
-    font-weight:600;
-    transition:.15s;
-  }
-  .tab-btn.active{background:var(--accent);color:white;border-color:var(--accent);}
-  .tab-btn:hover:not(.active){background:var(--panel-2);color:var(--text);}
-
-  .panel{
-    background:var(--panel);
-    border:1px solid var(--border);
-    border-radius:var(--radius);
-    padding:22px;
-    margin-bottom:20px;
-    display:none;
-  }
-  .panel.active{display:block;}
-
-  .summary-grid{
-    display:grid;
-    grid-template-columns:repeat(8,minmax(0,1fr));
-    gap:8px;
-    margin-bottom:20px;
-    overflow-x:auto;
-  }
-  .stat-card{
-    background:var(--panel);
-    border:1px solid var(--border);
-    border-radius:var(--radius);
-    padding:10px 10px;
-    min-width:0;
-  }
-  .stat-card .label{color:var(--muted);font-size:12px;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .stat-card .value{font-size:16px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .stat-card .value.value-emphasis{font-weight:800;text-decoration:underline;}
-  .stat-card .value.value-link{
-    background:none;
-    border:none;
-    padding:0;
-    font-family:inherit;
-    cursor:pointer;
-    display:block;
-    text-align:left;
-  }
-  .stat-card .value.value-link:hover{opacity:.8;}
-  .pos{color:var(--green);}
-  .neg{color:var(--red);}
-
-  form{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;align-items:end;}
-  label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px;}
-  input,select{
-    width:100%;
-    padding:10px 12px;
-    border-radius:9px;
-    border:1px solid var(--border);
-    background:var(--panel-2);
-    color:var(--text);
-    font-size:14px;
-  }
-  input:focus,select:focus{outline:none;border-color:var(--accent);}
-
-  .btn{
-    padding:10px 18px;
-    border-radius:9px;
-    border:none;
-    cursor:pointer;
-    font-weight:700;
-    font-size:14px;
-  }
-  .btn-primary{background:var(--accent);color:white;}
-  .btn-primary:hover{background:#2f6fe0;}
-  .btn-ghost{background:transparent;border:1px solid var(--border);color:var(--muted);}
-  .btn-ghost:hover{color:var(--text);border-color:var(--accent);}
-  .btn-danger-icon{background:transparent;border:none;color:var(--red);cursor:pointer;font-size:16px;}
-
-  table{width:100%;border-collapse:collapse;font-size:13.5px;}
-  thead th{
-    text-align:left;
-    color:var(--muted);
-    font-weight:600;
-    padding:10px 8px;
-    border-bottom:1px solid var(--border);
-    white-space:nowrap;
-  }
-  tbody td{
-    padding:10px 8px;
-    border-bottom:1px solid rgba(255,255,255,0.05);
-    white-space:nowrap;
-  }
-  tbody tr:hover{background:rgba(255,255,255,0.03);}
-  .table-wrap{overflow-x:auto;}
-
-  .badge{
-    display:inline-block;
-    padding:4px 10px;
-    border-radius:999px;
-    font-size:12px;
-    font-weight:700;
-    white-space:nowrap;
-  }
-  .badge-up{background:var(--green-bg);color:var(--green);}
-  .badge-down{background:var(--red-bg);color:var(--red);}
-  .badge-watch{background:rgba(148,163,184,0.15);color:var(--muted);}
-  .badge-closed{background:rgba(139,92,246,0.15);color:var(--accent-2);}
-
-  tr.row-closed{background:var(--green-bg);}
-  tr.row-closed:hover{background:var(--green-bg);}
-  .price-input:disabled{opacity:.5;cursor:not-allowed;}
-
-  .stat-card .wallet-input{
-    width:100%;
-    padding:5px 6px;
-    font-size:15px;
-    font-weight:700;
-    background:var(--panel-2);
-    border:1px solid var(--border);
-    border-radius:8px;
-    color:var(--text);
-  }
-  .stat-card .wallet-input:focus{outline:none;border-color:var(--accent);}
-
-  .backup-row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;}
-  .file-label{
-    display:inline-block;
-    padding:10px 18px;
-    border-radius:9px;
-    border:1px solid var(--border);
-    color:var(--muted);
-    cursor:pointer;
-    font-weight:700;
-    font-size:14px;
-    background:transparent;
-  }
-  .file-label:hover{color:var(--text);border-color:var(--accent);}
-
-  .price-cell{display:flex;flex-direction:column;gap:4px;}
-  .price-input{
-    width:95px;
-    padding:6px 8px;
-    font-size:13px;
-  }
-  .updated-at{font-size:11px;color:var(--muted);}
-  .empty{
-    text-align:center;
-    color:var(--muted);
-    padding:30px 10px;
-  }
-  .note{color:var(--muted);font-size:12.5px;margin-top:10px;line-height:1.7;}
-  .section-title{font-size:16px;font-weight:700;margin:0 0 14px;}
-  .panel-header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;}
-  .panel-header .section-title{margin:0;}
-  .filter-bar{display:none;align-items:center;gap:10px;}
-  .filter-bar.show{display:flex;}
-
-  .symbol-link{
-    background:none;
-    border:none;
-    padding:0;
-    font-weight:700;
-    font-size:inherit;
-    cursor:pointer;
-    text-decoration:underline;
-    text-decoration-style:dotted;
-    text-underline-offset:3px;
-  }
-  .symbol-link:hover{opacity:.8;}
-  .stat-label-link{
-    background:none;
-    border:none;
-    padding:0;
-    color:var(--muted);
-    font-size:12px;
-    cursor:pointer;
-    text-decoration:underline;
-    text-decoration-style:dotted;
-    text-underline-offset:3px;
-    margin-bottom:4px;
-    white-space:nowrap;
-    overflow:hidden;
-    text-overflow:ellipsis;
-    max-width:100%;
-    display:block;
-  }
-  .stat-label-link:hover{color:var(--text);}
-  @media (max-width:900px){
-    .summary-grid{grid-template-columns:repeat(8,minmax(120px,1fr));}
-  }
-  @keyframes rowFlash{
-    0%{background:rgba(59,130,246,0.35);}
-    100%{background:transparent;}
-  }
-  tr.highlight-row{animation:rowFlash 1.6s ease-out;}
-  .modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;justify-content:center;align-items:flex-start;padding:20px;overflow:auto;z-index:50;}
-  .modal.show{display:flex;}
-  .modal-box{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);width:100%;max-width:920px;padding:20px;}
-  .chart{width:100%;height:auto;display:block;background:var(--panel-2);border-radius:10px;margin:10px 0;}
-  .tips{display:grid;gap:8px;margin:0 0 14px;}
-  .tips:empty{display:none;}
-  .tip{padding:9px 12px;border-radius:9px;font-size:13px;line-height:1.6;border-left:4px solid;}
-  .tip.good{background:var(--green-bg);border-color:var(--green);}
-  .tip.bad{background:var(--red-bg);border-color:var(--red);}
-  .tip.warn{background:var(--amber-bg);border-color:var(--amber);}
-  .tip.info{background:rgba(59,130,246,.12);border-color:var(--accent);}
-  .mini{display:flex;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--muted);}
-  .mini b{color:var(--text);}
-  .btn-chart{background:var(--panel-2);border:1px solid var(--border);border-radius:8px;cursor:pointer;padding:4px 9px;font-size:15px;}
-  .btn-chart:hover{border-color:var(--accent);}
-  .market-bar{background:linear-gradient(135deg,#1e293b,#22304a);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin-bottom:20px;}
-  .mk-row{display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
-  .mk-row .label{color:var(--muted);font-size:12px;}
-  .mk-val{font-size:26px;font-weight:800;}
-  .mk-in{display:flex;gap:8px;margin-inline-start:auto;}
-  .mk-in input{width:170px;}
-  .alloc{display:flex;height:12px;border-radius:99px;overflow:hidden;background:var(--panel-2);margin:6px 0 8px;}
-  .alloc span{display:block;height:100%;}
-  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-inline-end:5px;}
-  .pos-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;}
-  .pos-card{background:var(--panel-2);border:1px solid var(--border);border-radius:var(--radius);padding:14px;display:flex;flex-direction:column;gap:10px;}
-  .pc-head{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:17px;}
-  .pc-head .badge{font-size:11px;white-space:normal;text-align:center;}
-  .pc-main{display:flex;justify-content:space-between;align-items:center;gap:10px;}
-  .pc-main .price-input{width:110px;font-size:15px;font-weight:700;}
-  .spark{width:120px;height:38px;}
-  .spark-empty{font-size:11px;color:var(--muted);}
-  .pc-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;font-size:12px;}
-  .pc-stats span{display:block;color:var(--muted);font-size:11px;}
-  .pc-pl{font-size:16px;font-weight:800;}
-  .pc-pl small{font-weight:500;opacity:.85;}
-  .pc-actions{display:flex;gap:6px;flex-wrap:wrap;}
-  .pc-actions .btn-chart{flex:1;font-size:12px;color:var(--text);}
-  @media (max-width:600px){ body{padding:12px;} .mk-in{margin-inline-start:0;width:100%;} .mk-in input{flex:1;} }
+:root{--bg:#0d1320;--p:#162033;--p2:#1d2a42;--ln:#2a3957;--t:#e9eef7;--m:#8fa0bd;--g:#34c27a;--r:#ef5f5f;--y:#e9ab3c;--a:#4d8dff}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--t);font:14.5px/1.55 "Segoe UI",system-ui,Roboto,Arial,sans-serif;padding:16px}
+.wrap{max-width:1180px;margin:auto}
+header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+h1{font-size:22px;margin:0}h2{font-size:16px;margin:24px 0 10px}h2 small{color:var(--m);font-weight:400;font-size:13px;margin-left:8px}
+#sync{font-size:13px;color:var(--m)}
+nav{display:flex;gap:6px;position:sticky;top:0;background:var(--bg);padding:8px 0;margin-bottom:12px;z-index:5}
+nav button{flex:1;padding:10px 6px;border:1px solid var(--ln);background:var(--p);color:var(--m);border-radius:10px;font:inherit;font-weight:600;cursor:pointer}
+nav button.on{background:var(--a);border-color:var(--a);color:#fff}
+section{display:none}section.on{display:block}
+.grp{color:var(--m);font-size:13px;margin:18px 0 8px;font-weight:600}
+.kg{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.k{background:var(--p);border:1px solid var(--ln);border-radius:12px;padding:12px 14px;min-width:0}
+.k i{display:block;font-style:normal;color:var(--m);font-size:12.5px}
+.k b{display:block;font-size:19px;margin-top:2px}
+.k em{display:block;font-style:normal;font-size:12.5px;color:var(--m)}
+.k.hero{grid-column:span 2;background:var(--p2)}.k.hero b{font-size:28px}
+.k input{margin-top:2px;font-size:17px;font-weight:700}
+.pos{color:var(--g)}.neg{color:var(--r)}
+.bdg{display:inline-block;padding:2px 10px;border-radius:99px;font-size:12.5px;font-weight:700}
+.bdg.up{background:rgba(52,194,122,.15);color:var(--g)}.bdg.down{background:rgba(239,95,95,.15);color:var(--r)}.bdg.watch{background:rgba(233,171,60,.15);color:var(--y)}
+.al{display:grid;gap:6px;margin-top:12px}
+.al div{padding:8px 12px;border-radius:9px;font-size:13.5px;background:var(--p);border-left:4px solid var(--y)}
+.al .g{border-color:var(--g)}.al .r{border-color:var(--r)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:12px}
+.card{background:var(--p);border:1px solid var(--ln);border-top:3px solid var(--ln);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.card.up{border-top-color:var(--g)}.card.down{border-top-color:var(--r)}.card.watch{border-top-color:var(--y)}
+.ch{display:flex;justify-content:space-between;align-items:center;font-size:18px}
+.big{font-size:20px;font-weight:700}.big small{font-size:14px;font-weight:600}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px 6px;font-size:13.5px}
+.g4 i{display:block;font-style:normal;color:var(--m);font-size:11.5px}
+.why{margin:0;padding:0;list-style:none;font-size:12.5px;color:var(--m);display:grid;gap:3px}
+.why li::before{content:"● ";font-size:9px}.why .g::before{color:var(--g)}.why .r::before{color:var(--r)}.why .y::before{color:var(--y)}
+.acts{display:flex;gap:6px}
+.acts button,.btn{padding:8px 12px;border-radius:9px;border:1px solid var(--ln);background:var(--p2);color:var(--t);font:inherit;font-size:13.5px;cursor:pointer}
+.acts button{flex:1}
+.btn.pri{background:var(--a);border-color:var(--a);color:#fff;font-weight:700}
+.btn:hover,.acts button:hover{border-color:var(--a)}
+.box{background:var(--p);border:1px solid var(--ln);border-radius:12px;padding:16px}
+form,.fg{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;align-items:end}
+label{display:block;font-size:12.5px;color:var(--m);margin-bottom:4px}
+input,select{width:100%;padding:9px 10px;border-radius:9px;border:1px solid var(--ln);background:var(--p2);color:var(--t);font:inherit}
+input:focus,select:focus{outline:2px solid var(--a)}
+.note{color:var(--m);font-size:12.5px;margin:8px 0 0}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;color:var(--m);font-weight:600;padding:8px;border-bottom:1px solid var(--ln);white-space:nowrap}
+td{padding:8px;border-bottom:1px solid rgba(255,255,255,.05);white-space:nowrap}
+.lnk{background:none;border:0;color:inherit;font:inherit;cursor:pointer;text-decoration:underline dotted;padding:0}
+.empty{color:var(--m);text-align:center;padding:24px}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--p2);border:1px solid var(--a);padding:9px 18px;border-radius:10px;opacity:0;transition:.25s;pointer-events:none;z-index:30}
+#toast.show{opacity:1}
+#mod{position:fixed;inset:0;background:rgba(5,8,15,.75);display:none;align-items:center;justify-content:center;padding:14px;z-index:20}
+#mod.on{display:flex}
+#mb{background:var(--p);border:1px solid var(--ln);border-radius:14px;padding:16px;width:100%;max-width:820px;max-height:92vh;overflow:auto}
+#cv{position:relative}#cv svg{width:100%;height:auto;display:block;touch-action:none}
+#tip{position:absolute;pointer-events:none;background:var(--p2);border:1px solid var(--ln);border-radius:8px;padding:5px 9px;font-size:12.5px;display:none;white-space:nowrap}
+.lg{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--m);margin-top:8px}
+.tb{display:flex;flex-wrap:wrap;gap:8px 16px;margin-bottom:10px}.seg{display:flex;border:1px solid var(--ln);border-radius:9px;overflow:hidden}.seg button{background:var(--p2);color:var(--m);border:0;padding:6px 13px;font:inherit;font-size:13px;cursor:pointer}.seg button.on{background:var(--a);color:#fff;font-weight:700}
+#m2{position:fixed;inset:0;background:rgba(5,8,15,.75);display:none;align-items:center;justify-content:center;padding:14px;z-index:20}#m2.on{display:flex}
+#mb2{background:var(--p);border:1px solid var(--ln);border-radius:14px;padding:16px;width:100%;max-width:820px;max-height:92vh;overflow:auto}
+.clk{cursor:pointer}.clk:hover{border-color:var(--a)}tfoot td{font-weight:700;border-top:2px solid var(--ln);border-bottom:0}
+.prow{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px}.prow>div{width:200px}.prow>.sp{margin-left:auto;width:auto}
+.psticky{position:sticky;top:var(--nh,56px);z-index:4;background:var(--p);border:1px solid var(--ln);border-radius:12px;padding:12px 16px;margin-bottom:12px;box-shadow:0 6px 12px rgba(0,0,0,.35)}.psticky .prow{margin:0}
+.pt th{position:sticky;top:calc(var(--nh,56px) + var(--ph,90px));background:var(--p);z-index:3}
+@media(max-width:600px){body{padding:10px}.k.hero{grid-column:span 1}nav button{font-size:13px;min-width:0}}
 </style>
 </head>
 <body>
-<div class="container">
-  <h1>📈 Stock Tracker</h1>
-  <p class="sub">Log your buy/sell trades and track profitability per stock — all amounts in EGP. <span id="syncStatus" style="color:var(--muted);">🔄 Connecting to cloud…</span></p>
+<div class="wrap">
+<header><h1>📈 Stock Portfolio</h1><span id="sync">🔄 Connecting…</span></header>
+<nav id="nav">
+<button data-t="dash" class="on">📊 Portfolio</button>
+<button data-t="trade">➕ Trades</button>
+<button data-t="price">📅 Update Prices</button>
+<button data-t="backup">💾 Backup</button>
+</nav>
 
-  <div class="summary-grid" id="summaryGrid"></div>
+<section id="t-dash" class="on">
+<div id="kpis"></div>
+<div class="al" id="alerts"></div>
+<h2>Your holdings <small>each stock has a signal and the reasons behind it</small></h2>
+<div class="grid" id="cards"></div>
+</section>
 
-  <div class="market-bar" id="marketBar"></div>
+<section id="t-trade">
+<h2 style="margin-top:0">Record a buy or sell</h2>
+<div class="box">
+<form id="f">
+<div><label>Stock symbol</label><input id="sym" list="syms" autocomplete="off" placeholder="e.g. COMI" required></div>
+<div><label>Type</label><select id="typ"><option value="buy">Buy</option><option value="sell">Sell</option></select></div>
+<div><label>Quantity</label><input id="qty" type="number" min="0" step="any" required></div>
+<div><label>Price per share (EGP)</label><input id="prc" type="number" min="0" step="any" required></div>
+<div><label>Commission (EGP)</label><input id="com" type="number" min="0" step="any" value="0"></div>
+<div><label>Date</label><input id="dt" type="date" required></div>
+<div><label>Note (optional)</label><input id="nts"></div>
+<div><button class="btn pri" style="width:100%">Save trade</button></div>
+</form>
+<datalist id="syms"></datalist>
+<p class="note" id="hint"></p>
+<p class="note">Buy commission is added to cost; sell commission is deducted from proceeds. You cannot sell more than you own.</p>
+</div>
+<h2>Trade history <small id="hf"></small></h2>
+<div class="box tw"><table><thead><tr><th>Date</th><th>Stock</th><th>Type</th><th>Qty</th><th>Price</th><th>Commission</th><th>Net</th><th>Note</th><th></th></tr></thead><tbody id="hist"></tbody></table></div>
+</section>
 
-  <div class="tabs">
-    <button class="tab-btn active" data-tab="add">➕ Add Trade</button>
-    <button class="tab-btn" data-tab="portfolio">💼 Open Positions</button>
-    <button class="tab-btn" data-tab="closed">✅ Closed Trades</button>
-    <button class="tab-btn" data-tab="history">🧾 Transaction History</button>
-    <button class="tab-btn" data-tab="backup">💾 Backup &amp; Export</button>
-  </div>
+<section id="t-price">
+<div class="psticky"><h2 style="margin:0 0 10px">Update closing prices</h2>
+<div class="prow">
+<div><label>Date</label><input id="pd" type="date"></div>
+<div><label>EGX30 close (optional)</label><input id="pe" type="number" step="any" min="0"></div>
+<div class="sp"><button class="btn pri" onclick="savePrices()">💾 Save prices</button></div>
+</div></div>
+<div class="box">
+<div><table class="pt"><thead><tr><th>Stock</th><th>Last price</th><th>Last update</th><th>New price</th><th>Change</th></tr></thead><tbody id="pb"></tbody></table></div>
+<p class="note">Leave a field empty to keep its price. Saving for the same date replaces that day's entry. At least 3 price updates per stock are needed for signals.</p>
+</div>
+</section>
 
-  <!-- Add Transaction -->
-  <div class="panel active" id="tab-add">
-    <p class="section-title">Add a Buy or Sell Trade</p>
-    <form id="txForm">
-      <div>
-        <label>Stock Name / Ticker</label>
-        <input type="text" id="symbol" placeholder="e.g. COMI" list="symbolSuggestions" autocomplete="off"
-          onfocus="clearSymbolForReselect(this)" onblur="restoreSymbolIfEmpty(this)" required>
-        <datalist id="symbolSuggestions"></datalist>
-      </div>
-      <div>
-        <label>Transaction Type</label>
-        <select id="type">
-          <option value="buy">Buy</option>
-          <option value="sell">Sell</option>
-        </select>
-      </div>
-      <div style="grid-column:1/-1;margin-top:-6px;">
-        <span class="note" id="availableQtyNote" style="margin:0;"></span>
-      </div>
-      <div>
-        <label>Quantity</label>
-        <input type="number" id="qty" min="0.0001" step="any" placeholder="Number of shares" required>
-      </div>
-      <div>
-        <label>Price per Share (EGP)</label>
-        <input type="number" id="price" min="0" step="any" placeholder="Unit price" required>
-      </div>
-      <div>
-        <label>Commission / Fees (EGP)</label>
-        <input type="number" id="commission" min="0" step="any" placeholder="0.00" value="0">
-      </div>
-      <div>
-        <label>Total (EGP)</label>
-        <input type="text" id="totalPreview" value="0.00 EGP" readonly style="opacity:.85;">
-      </div>
-      <div>
-        <label>Date</label>
-        <input type="date" id="date" required>
-      </div>
-      <div>
-        <label>Notes (optional)</label>
-        <input type="text" id="notes" placeholder="Note...">
-      </div>
-      <div>
-        <button type="submit" class="btn btn-primary" style="width:100%;">Save Trade</button>
-      </div>
-    </form>
-    <p class="note">Commission on a buy is added to your cost basis; commission on a sell is deducted from your proceeds — both affect profitability.<br>
-    <strong>Sell orders are blocked</strong> if the quantity exceeds what you currently hold for that stock — the trade will not be saved and you'll see an error instead.</p>
-  </div>
-
-  <!-- Portfolio -->
-  <div class="panel" id="tab-portfolio">
-    <div class="panel-header">
-      <p class="section-title">Open Positions (still held)</p>
-      <div class="filter-bar" id="portfolioFilterBar">
-        <span class="note" style="margin:0;" id="portfolioFilterLabel"></span>
-        <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="clearPortfolioFilter()">Show All</button>
-      </div>
-    </div>
-    <div class="tips" id="insights"></div>
-    <div class="pos-grid" id="posGrid"></div>
-    <p class="note">Only stocks you still hold appear here — profits from past sales live in <strong>Closed Trades</strong> and never affect these numbers. Type a new price on any card to log it to that stock's history. Verdicts (<strong>Accumulate / Hold / Watch / Reduce</strong>) combine the stock's own trend, how it performs versus <strong>EGX30</strong>, the overall market direction, concentration and price freshness (EGX trades Sunday–Thursday). These are rule-based guides, not financial advice.</p>
-  </div>
-
-  <!-- Closed Trades -->
-  <div class="panel" id="tab-closed">
-    <p class="section-title">Closed Trades (realized sales)</p>
-    <div class="mini" id="closedStats" style="margin-bottom:14px;"></div>
-    <div class="table-wrap"><table>
-      <thead><tr><th>Date</th><th>Stock</th><th>Qty Sold</th><th>Avg Cost</th><th>Sell Price</th><th>Commission</th><th>Realized P/L</th><th>Return</th></tr></thead>
-      <tbody id="closedBody"></tbody>
-    </table></div>
-    <p class="note">Each sale is measured against your average cost at the moment you sold. These results are kept separate from the stocks you still hold.</p>
-  </div>
-
-  <div class="modal" id="stockModal" onclick="if(event.target===this)closeStock()"><div class="modal-box" id="stockBox"></div></div>
-
-  <!-- History -->
-  <div class="panel" id="tab-history">
-    <div class="panel-header">
-      <p class="section-title">All Transactions</p>
-      <div class="filter-bar" id="historyFilterBar">
-        <span class="note" style="margin:0;">Showing transactions for <strong id="historyFilterLabel"></strong></span>
-        <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="clearHistoryFilter()">Show All</button>
-      </div>
-    </div>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>Stock</th>
-            <th>Type</th>
-            <th>Quantity</th>
-            <th>Price (EGP)</th>
-            <th>Commission (EGP)</th>
-            <th>Net Total (EGP)</th>
-            <th>Notes</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody id="historyBody"></tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- Backup & Export -->
-  <div class="panel" id="tab-backup">
-    <p class="section-title">Full Backup (JSON)</p>
-    <div class="backup-row">
-      <button class="btn btn-primary" onclick="exportBackup()">⬇️ Download Backup (JSON)</button>
-      <label class="file-label" for="restoreFile">⬆️ Restore from Backup</label>
-      <input type="file" id="restoreFile" accept="application/json" style="display:none;" onchange="importBackup(this.files[0])">
-    </div>
-    <p class="note">The backup file contains every transaction, current prices, price update times, and your wallet balance. Restoring a backup <strong>completely replaces</strong> your current cloud data — you'll be asked to confirm before it happens.</p>
-
-    <p class="section-title" style="margin-top:26px;">Export to Excel</p>
-    <div class="backup-row">
-      <button class="btn btn-primary" onclick="exportExcel()">📊 Export to Excel (.xlsx)</button>
-    </div>
-    <p class="note">Creates an Excel workbook with three sheets: Portfolio, Transaction History, and Summary (including Wallet and Net Worth).</p>
-  </div>
-
+<section id="t-backup">
+<h2 style="margin-top:0">Backup (JSON)</h2>
+<div class="box">
+<p style="display:flex;gap:10px;flex-wrap:wrap;margin:0"><button class="btn pri" onclick="exportJ()">⬇️ Download backup</button>
+<label class="btn" style="margin:0;color:var(--t)">⬆️ Restore backup<input type="file" accept="application/json" hidden onchange="importJ(this.files[0])"></label></p>
+<p class="note">Includes all trades, prices, cash and savings. Restoring replaces all current data after you confirm.</p>
+</div>
+</section>
 </div>
 
+<div id="mod" onclick="if(event.target===this)closeM()"><div id="mb">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b id="mt" style="font-size:18px"></b><button class="btn" onclick="closeM()">✕ Close</button></div>
+<div id="tb" class="tb"></div><div id="cv"><svg id="sv" viewBox="0 0 760 380"></svg><div id="tip"></div></div>
+<div class="lg" id="lg"></div>
+<div class="g4" id="cs" style="margin-top:12px"></div>
+</div></div>
+<div id="m2" onclick="if(event.target===this)closeM()"><div id="mb2">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><b id="m2t" style="font-size:18px"></b><button class="btn" onclick="closeM()">✕ Close</button></div>
+<div class="tw"><table><thead id="m2h"></thead><tbody id="m2b"></tbody><tfoot id="m2f"></tfoot></table></div>
+</div></div>
+<div id="toast"></div>
+
 <script>
-// ---------- Firebase setup ----------
-const firebaseConfig = {
-  apiKey: "AIzaSyDmFWuYAnIzb0orASduKDA9QAM0owuqwiA",
-  authDomain: "stock-a0fb3.firebaseapp.com",
-  databaseURL: "https://stock-a0fb3-default-rtdb.firebaseio.com",
-  projectId: "stock-a0fb3",
-  storageBucket: "stock-a0fb3.firebasestorage.app",
-  messagingSenderId: "763699840336",
-  appId: "1:763699840336:web:ebc7da3308452225a95855",
-  measurementId: "G-PVQWVP1BJL"
-};
-firebase.initializeApp(firebaseConfig);
-try{ firebase.analytics(); }catch(e){ /* analytics may fail if blocked, that's fine */ }
-const db = firebase.database();
-const dataRef = db.ref('stockTrackerData');
+firebase.initializeApp({apiKey:"AIzaSyDmFWuYAnIzb0orASduKDA9QAM0owuqwiA",authDomain:"stock-a0fb3.firebaseapp.com",databaseURL:"https://stock-a0fb3-default-rtdb.firebaseio.com",projectId:"stock-a0fb3",storageBucket:"stock-a0fb3.firebasestorage.app",messagingSenderId:"763699840336",appId:"1:763699840336:web:ebc7da3308452225a95855"});
+const ref=firebase.database().ref('stockTrackerData');
+const $=id=>document.getElementById(id);
+let data={},filt=null;
+const fmt=(n,d=2)=>(n==null||isNaN(n))?'-':(+n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+const fq=n=>fmt(n,Number.isInteger(+n)?0:2),sg=n=>(n>=0?'+':'')+fmt(n),cl=n=>n>=0?'pos':'neg',ar=n=>n>=0?'▲':'▼';
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const day=d=>{d=new Date(d);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+const COLS=['#60a5fa','#f472b6','#34d399','#fbbf24','#a78bfa','#22d3ee','#fb923c','#4ade80','#f87171','#818cf8'];
+const col=s=>{let h=0;for(const c of s)h=c.charCodeAt(0)+((h<<5)-h);return COLS[Math.abs(h)%COLS.length]};
+const hk=s=>s.replace(/[.#$\/\[\]]/g,'_');
+function toast(m){const e=$('toast');e.textContent=m;e.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('show'),2400)}
+function sync(t,c){$('sync').textContent=t;$('sync').style.color=c}
+function norm(){data=data||{};data.transactions=data.transactions||[];data.currentPrices=data.currentPrices||{};data.priceUpdatedAt=data.priceUpdatedAt||{};data.priceHistory=data.priceHistory||{};data.marketHistory=data.marketHistory||[];data.wallet=data.wallet||0;data.savings=data.savings||0}
+function save(){ref.set(data).catch(()=>{sync('⚠️ Save failed','var(--r)');alert('Could not save to the database. Check your connection.')})}
+ref.on('value',s=>{data=s.val()||{};norm();sync('☁️ Connected','var(--g)');renderAll()},()=>sync('⚠️ Offline','var(--r)'));
 
-function emptyData(){
-  return { transactions: [], currentPrices: {}, priceUpdatedAt: {}, priceHistory: {}, marketHistory: [], wallet: 0 };
-}
-
-function setSyncStatus(text, color){
-  const el = document.getElementById('syncStatus');
-  if(el){ el.textContent = text; el.style.color = color; }
-}
-
-function saveData(){
-  dataRef.set(data).catch(err=>{
-    console.error('Firebase save error:', err);
-    setSyncStatus('⚠️ Save failed — check connection', 'var(--red)');
-    alert('Could not save to the cloud database. Check your internet connection and Firebase security rules.');
+/* ---------- calculations ---------- */
+function holdings(){
+  const H={};
+  [...data.transactions].sort((a,b)=>new Date(a.date)-new Date(b.date)).forEach(t=>{
+    const h=H[t.symbol]||(H[t.symbol]={qty:0,avg:0,real:0,trades:[]}),c=t.commission||0;
+    if(t.type==='buy'){const q=h.qty+t.qty;h.avg=(h.qty*h.avg+t.qty*t.price+c)/q;h.qty=q}
+    else{const q=Math.min(t.qty,h.qty),cm=t.qty>0?c*q/t.qty:0,pl=q*t.price-cm-h.avg*q;h.real+=pl;
+      h.trades.push({d:t.date,s:t.symbol,q,avg:h.avg,p:t.price,pl,pct:h.avg>0?pl/(h.avg*q)*100:0});h.qty=h.qty-q<1e-7?0:h.qty-q}
   });
+  return H;
+}
+function hist(s){const a=data.priceHistory[hk(s)];return a?Object.values(a).sort((x,y)=>new Date(x.t)-new Date(y.t)):[]}
+function setHist(s,l){l.sort((a,b)=>new Date(a.t)-new Date(b.t));if(l.length){data.priceHistory[hk(s)]=l;data.currentPrices[s]=l[l.length-1].p;data.priceUpdatedAt[s]=l[l.length-1].t}else delete data.priceHistory[hk(s)]}
+function px(s){if(data.currentPrices[s]!==undefined)return data.currentPrices[s];const t=data.transactions.filter(x=>x.symbol===s).sort((a,b)=>new Date(b.date)-new Date(a.date));return t.length?t[0].price:0}
+function mkt(){return Object.values(data.marketHistory).sort((a,b)=>new Date(a.t)-new Date(b.t))}
+function mstate(){
+  const m=mkt();if(m.length<2)return{r:'unknown',last:m.length?m[0].v:0,ch:0};
+  const w=m.slice(-5),last=m[m.length-1].v,sma=w.reduce((a,x)=>a+x.v,0)/w.length,ch=(last/m[m.length-2].v-1)*100,tr=(last/sma-1)*100;
+  return{r:tr>.3&&ch>=0?'bull':tr<-.3&&ch<=0?'bear':'side',last,ch};
+}
+const REG={bull:['🟢 Bullish','up'],bear:['🔴 Bearish','down'],side:['🟡 Sideways','watch'],unknown:['⚪ Log 2+ days','watch']};
+function tdays(iso){let d=new Date(iso),n=new Date(),c=0;d.setHours(0,0,0,0);while(d<n&&c<30){d.setDate(d.getDate()+1);const w=d.getDay();if(w!==5&&w!==6)c++}return c}
+
+/* ---------- per-stock analysis ---------- */
+function analyse(s,h,tv,ms){
+  const cp=px(s),p=hist(s).map(x=>x.p),R=[];let sc=0;
+  const pct=h.avg?(cp/h.avg-1)*100:0,w=tv?h.qty*cp/tv*100:0,n=p.length;
+  const ch=n>=2?(p[n-1]/p[n-2]-1)*100:null;
+  const dAmt=n>=2?h.qty*(p[n-1]-p[n-2]):0,dBase=n>=2?h.qty*p[n-2]:0;
+  let tr=null,dd=null;
+  if(n>=3){
+    const k=Math.min(5,n),sma=p.slice(-k).reduce((a,b)=>a+b,0)/k;tr=cp>=sma;sc+=tr?1:-1;
+    R.push([tr?'g':'r',tr?`Price is above its last-${k}-update average: uptrend`:`Price is below its last-${k}-update average: downtrend`]);
+    dd=(1-cp/Math.max(...p))*100;
+    if(pct>2&&dd>=5){sc--;R.push(['y',`Down ${fmt(dd,1)}% from its recorded peak: consider locking in some profit`])}
+    if(pct<=-15&&!tr){sc--;R.push(['r',`Down ${fmt(-pct,1)}% vs cost with a weak trend: review your thesis before averaging down`])}
+  }else R.push(['y','Log at least 3 prices to get a trend signal']);
+  if(pct>=15){sc-=.5;R.push(['g',`Up ${fmt(pct,1)}% vs cost: a reasonable time to take partial profit`])}
+  if(w>30){sc--;R.push(['y',`This stock is ${fmt(w,0)}% of your holdings: high concentration`])}
+  if(ms.r==='bull')sc++;if(ms.r==='bear')sc--;
+  const t=data.priceUpdatedAt[s],st=t?tdays(t):99;
+  if(st>=3)R.push(['y',t?`Price not updated for ${st} trading days`:'No price logged yet: using the last buy price']);
+  const v=n<3?['Add prices','watch']:sc>=2?['Add gradually','up']:sc>=.5?['Hold','up']:sc>-1.5?['Watch','watch']:['Reduce','down'];
+  return{cp,pct,w,ch,dAmt,dBase,tr,dd,v,R,st};
+}
+function spark(s){
+  const p=hist(s).slice(-20).map(x=>x.p);if(p.length<2)return '';
+  const mn=Math.min(...p),r=Math.max(...p)-mn||1;
+  return `<svg viewBox="0 0 100 30" width="90" height="28" style="cursor:pointer" onclick="openChart('${s}')"><polyline fill="none" stroke="${p[p.length-1]>=p[0]?'#34c27a':'#ef5f5f'}" stroke-width="2" points="${p.map((v,i)=>(i/(p.length-1)*98+1).toFixed(1)+','+(27-(v-mn)/r*24).toFixed(1)).join(' ')}"/></svg>`;
 }
 
-let data = emptyData();
-let dataLoaded = false;
-let historyFilterSymbol = null;
-let portfolioFilter = null; // null | 'unrealized' | 'realized'
-
-// One-time migration from an earlier localStorage-only version of this file, if present
-function migrateLocalStorageIfNeeded(){
-  try{
-    const old = localStorage.getItem('stocks_tracker_data_v3') ||
-                localStorage.getItem('stocks_tracker_data_v2') ||
-                localStorage.getItem('stocks_tracker_data_v1');
-    if(!old) return null;
-    const parsed = JSON.parse(old);
-    (parsed.transactions||[]).forEach(t=>{ if(t.commission===undefined) t.commission = 0; });
-    return {
-      transactions: parsed.transactions||[],
-      currentPrices: parsed.currentPrices||{},
-      priceUpdatedAt: parsed.priceUpdatedAt||{}
-    };
-  }catch(e){ return null; }
+/* ---------- detailed daily chart ---------- */
+let CS={s:null,ty:'line',rg:'3m'};
+function openChart(s){
+  if(hist(s).length<2){toast('Log at least 2 prices to see the chart');return}
+  CS.s=s;$('mod').classList.add('on');drawChart();
 }
-
-dataRef.on('value', (snapshot)=>{
-  const val = snapshot.val();
-  if(val){
-    data = val;
-    if(!data.transactions) data.transactions = [];
-    if(!data.currentPrices) data.currentPrices = {};
-    if(!data.priceUpdatedAt) data.priceUpdatedAt = {};
-    if(!data.priceHistory) data.priceHistory = {};
-    if(!data.marketHistory) data.marketHistory = [];
-    if(data.wallet === undefined || data.wallet === null) data.wallet = 0;
-  } else if(!dataLoaded){
-    // nothing in the cloud yet — offer to bring over any old local data once
-    const migrated = migrateLocalStorageIfNeeded();
-    data = migrated || emptyData();
-    if(migrated) saveData();
-  } else {
-    data = emptyData();
+function setCT(k,v){CS[k]=v;drawChart()}
+function drawChart(){
+  const s=CS.s,H=holdings()[s],avg=H&&H.qty>0?H.avg:null,ty=CS.ty;
+  const m={};hist(s).forEach(a=>{m[day(a.t)]=a.p});
+  const all=Object.keys(m).sort().map(d=>({d,p:m[d]}));
+  const lim=new Date();lim.setDate(lim.getDate()-{'1m':31,'3m':92,'6m':183,all:99999}[CS.rg]);
+  let i0=all.findIndex(a=>a.d>=day(lim));if(i0<0||all.length-i0<2)i0=Math.max(0,all.length-2);
+  const P=all.slice(i0),pv0=i0>0?all[i0-1].p:null,n=P.length;
+  P.forEach((a,i)=>{const q=i?P[i-1].p:pv0;a.o=q==null?a.p:q;a.c=q==null?null:(a.p/q-1)*100});
+  const W=760,Hh=380,L=60,R=14,T=14,B=34,st=(W-L-R)/n,X=i=>L+st*(i+.5);
+  const vals=ty==='pct'?P.map(a=>a.c||0).concat(0):P.map(a=>a.p).concat(avg?[avg]:[]);
+  let lo=Math.min(...vals),hi=Math.max(...vals);const pad=(hi-lo||Math.abs(hi)*.05||1)*.12;lo-=pad;hi+=pad;
+  const Y=v=>T+(1-(v-lo)/(hi-lo))*(Hh-T-B),fy=v=>ty==='pct'?fmt(v,1)+'%':fmt(v);
+  let g='<defs><linearGradient id="ag" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4d8dff" stop-opacity=".4"/><stop offset="1" stop-color="#4d8dff" stop-opacity="0"/></linearGradient></defs>';
+  for(let i=0;i<=5;i++){const v=lo+(hi-lo)*i/5,y=Y(v);g+=`<line x1="${L}" x2="${W-R}" y1="${y}" y2="${y}" stroke="#2a3957"/><text x="${L-7}" y="${y+4}" fill="#8fa0bd" font-size="12" text-anchor="end">${fy(v)}</text>`}
+  const tk=Math.min(6,n);
+  for(let j=0;j<tk;j++){const i=tk===1?0:Math.round(j*(n-1)/(tk-1));g+=`<text x="${X(i)}" y="${Hh-10}" fill="#8fa0bd" font-size="12" text-anchor="${j===0?'start':j===tk-1?'end':'middle'}">${P[i].d.slice(n>200?2:5)}</text>`}
+  const pts=P.map((a,i)=>X(i)+','+Y(a.p)).join(' '),bw=Math.max(3,Math.min(20,st*.62));
+  if(ty==='area')g+=`<path d="M${X(0)},${Hh-B} L${pts.replace(/ /g,' L')} L${X(n-1)},${Hh-B}Z" fill="url(#ag)"/>`;
+  if(ty==='line'||ty==='area'){g+=`<polyline fill="none" stroke="#4d8dff" stroke-width="2.4" stroke-linejoin="round" points="${pts}"/>`;if(n<=45)g+=P.map((a,i)=>`<circle cx="${X(i)}" cy="${Y(a.p)}" r="3.2" fill="#4d8dff"/>`).join('')}
+  if(ty==='candle')g+=P.map((a,i)=>`<rect x="${X(i)-bw/2}" y="${Y(Math.max(a.o,a.p))}" width="${bw}" height="${Math.max(1.5,Math.abs(Y(a.o)-Y(a.p)))}" rx="1.5" fill="${a.p>=a.o?'#34c27a':'#ef5f5f'}"/>`).join('');
+  if(ty==='pct')g+=`<line x1="${L}" x2="${W-R}" y1="${Y(0)}" y2="${Y(0)}" stroke="#8fa0bd"/>`+P.map((a,i)=>{const v=a.c||0,y=Y(v),z=Y(0);return `<rect x="${X(i)-bw/2}" y="${Math.min(y,z)}" width="${bw}" height="${Math.max(1.5,Math.abs(y-z))}" rx="1.5" fill="${v>=0?'#34c27a':'#ef5f5f'}"/>`}).join('');
+  if(ty!=='pct'){
+    if(avg)g+=`<line x1="${L}" x2="${W-R}" y1="${Y(avg)}" y2="${Y(avg)}" stroke="#e9ab3c" stroke-dasharray="6 5" stroke-width="1.6"/><text x="${W-R}" y="${Y(avg)-6}" fill="#e9ab3c" font-size="12" text-anchor="end">avg cost ${fmt(avg)}</text>`;
+    data.transactions.filter(t=>t.symbol===s&&t.date>=P[0].d&&t.date<=P[n-1].d).forEach(t=>{const i=P.findIndex(a=>a.d>=t.date),x=X(i),y=Y(t.price);g+=t.type==='buy'?`<path d="M${x} ${y-3}l8 14h-16z" fill="#34c27a" stroke="#0d1320"/>`:`<path d="M${x} ${y+3}l8 -14h-16z" fill="#ef5f5f" stroke="#0d1320"/>`});
   }
-  dataLoaded = true;
-  setSyncStatus('☁️ Synced', 'var(--green)');
-  renderAll();
-}, (err)=>{
-  console.error('Firebase read error:', err);
-  setSyncStatus('⚠️ Offline — not connected to cloud', 'var(--red)');
-});
+  g+=`<line id="vl" y1="${T}" y2="${Hh-B}" stroke="#8fa0bd" stroke-dasharray="3 3" style="display:none"/>`;
+  $('sv').innerHTML=g;
+  const sgm=(k,o)=>`<div class="seg">${o.map(([v,l])=>`<button class="${CS[k]===v?'on':''}" onclick="setCT('${k}','${v}')">${l}</button>`).join('')}</div>`;
+  $('tb').innerHTML=sgm('ty',[['line','Line'],['area','Area'],['candle','Candles'],['pct','Daily %']])+sgm('rg',[['1m','1M'],['3m','3M'],['6m','6M'],['all','All']]);
+  $('mt').innerHTML=`<span style="color:${col(s)}">${s}</span> · daily closes`;
+  const up='<span><b style="color:#34c27a">■</b> Up day</span><span><b style="color:#ef5f5f">■</b> Down day</span>',tr='<span><b style="color:#34c27a">▲</b> Buy</span><span><b style="color:#ef5f5f">▼</b> Sell</span>'+(avg?'<span><b style="color:#e9ab3c">╌</b> Avg cost</span>':'');
+  $('lg').innerHTML=ty==='candle'?up+'<span>Candle: previous close → close</span>'+tr:ty==='pct'?up+'<span>Bar: % change vs previous close</span>':'<span><b style="color:#4d8dff">━</b> Daily close</span>'+tr;
+  const last=P[n-1].p,f=P[0].o,ps=P.filter(a=>a.c!=null),best=ps.length&&ps.reduce((a,b)=>b.c>a.c?b:a),wst=ps.length&&ps.reduce((a,b)=>b.c<a.c?b:a),hp=Math.max(...P.map(a=>a.p)),lp=Math.min(...P.map(a=>a.p));
+  const C=(l,v,c='')=>`<div><i>${l}</i><span class="${c}">${v}</span></div>`;
+  $('cs').innerHTML=C('Last close',fmt(last))+C('Change in range',sg((last/f-1)*100)+'%',cl(last-f))+C('Range high',fmt(hp))+C('Range low',fmt(lp))+C('From high','-'+fmt((1-last/hp)*100,1)+'%')+(best?C('Best day',sg(best.c)+'% · '+best.d.slice(5),'pos')+C('Worst day',sg(wst.c)+'% · '+wst.d.slice(5),'neg'):'')+(avg?C('Avg cost',fmt(avg))+C('Vs avg cost',sg((last/avg-1)*100)+'%',cl(last-avg)):'')+C('Days shown',n);
+  const sv=$('sv'),tip=$('tip'),vl=sv.querySelector('#vl');
+  const mv=e=>{const r=sv.getBoundingClientRect(),cx=e.touches?e.touches[0].clientX:e.clientX,mx=(cx-r.left)/r.width*W,i=Math.max(0,Math.min(n-1,Math.floor((mx-L)/st))),a=P[i];
+    vl.style.display='';vl.setAttribute('x1',X(i));vl.setAttribute('x2',X(i));
+    tip.style.display='block';tip.innerHTML=`<b>${a.d}</b><br>Close ${fmt(a.p)}${ty==='candle'?'<br>Open '+fmt(a.o):''}<br>Day <span class="${cl(a.c||0)}">${a.c==null?'-':sg(a.c)+'%'}</span>`;
+    tip.style.left=Math.min(Math.max(X(i)/W*r.width+12,0),r.width-120)+'px';tip.style.top='6px'};
+  sv.onmousemove=mv;sv.ontouchmove=mv;sv.onmouseleave=()=>{vl.style.display='none';tip.style.display='none'};
+}
+let RT=[],UR=[];
+function showPL(k){
+  const re=k==='real',rows=re?RT:UR,H=re?['Date','Stock','Qty','Avg cost','Sell price','P/L','Return']:['Stock','Qty','Avg cost','Price','Cost','Value','P/L','Return'];
+  let tp=0,tc=0,tv=0;
+  const body=rows.map(r=>{const c=re?r.avg*r.q:r.cost;tp+=r.pl;tc+=c;tv+=r.val||0;const pc=`<td class="${cl(r.pl)}">${sg(r.pl)}</td><td class="${cl(r.pl)}">${sg(r.pct)}%</td>`;
+    return re?`<tr><td>${r.d}</td><td style="color:${col(r.s)}">${r.s}</td><td>${fq(r.q)}</td><td>${fmt(r.avg)}</td><td>${fmt(r.p)}</td>${pc}</tr>`
+    :`<tr><td style="color:${col(r.s)}">${r.s}</td><td>${fq(r.q)}</td><td>${fmt(r.avg)}</td><td>${fmt(r.p)}</td><td>${fmt(r.cost)}</td><td>${fmt(r.val)}</td>${pc}</tr>`}).join('');
+  const tpc=tc?tp/tc*100:0,tt=`<td class="${cl(tp)}">${sg(tp)}</td><td class="${cl(tp)}">${sg(tpc)}%</td>`;
+  $('m2t').textContent=re?'Closed sell trades · Realized P/L':'Open positions · Unrealized P/L';
+  $('m2h').innerHTML='<tr>'+H.map(h=>`<th>${h}</th>`).join('')+'</tr>';
+  $('m2b').innerHTML=rows.length?body:`<tr><td colspan="8" class="empty">${re?'No sell trades yet.':'No open positions.'}</td></tr>`;
+  $('m2f').innerHTML=rows.length?(re?`<tr><td colspan="5">Total (${rows.length} trades)</td>${tt}</tr>`:`<tr><td colspan="4">Total (${rows.length} stocks)</td><td>${fmt(tc)}</td><td>${fmt(tv)}</td>${tt}</tr>`):'';
+  $('m2').classList.add('on');
+}
+function closeM(){$('mod').classList.remove('on');$('m2').classList.remove('on')}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeM()});
 
+/* ---------- Portfolio view ---------- */
+function renderDash(){
+  const H=holdings(),ms=mstate(),S=Object.keys(H).filter(s=>H[s].qty>0).sort((a,b)=>H[b].qty*px(b)-H[a].qty*px(a));
+  let inv=0,val=0,real=0;
+  Object.keys(H).forEach(s=>{real+=H[s].real});
+  S.forEach(s=>{inv+=H[s].qty*H[s].avg;val+=H[s].qty*px(s)});
+  const A={};S.forEach(s=>A[s]=analyse(s,H[s],val,ms));
+  UR=S.map(s=>{const h=H[s],c=h.qty*h.avg,v=h.qty*A[s].cp;return{s,q:h.qty,avg:h.avg,p:A[s].cp,cost:c,val:v,pl:v-c,pct:c?(v/c-1)*100:0}});
+  const un=val-inv,unp=inv?un/inv*100:0,cash=data.wallet,sav=data.savings,nw=cash+sav+val;
+  let dA=0,dB=0;S.forEach(s=>{dA+=A[s].dAmt;dB+=A[s].dBase});
+  const win=S.filter(s=>A[s].pct>=0).length,top=S.length?S.reduce((a,b)=>A[a].w>=A[b].w?a:b):null;
+  const cp=nw?cash/nw*100:0,low={bull:10,side:20,bear:30}[ms.r]||0,tgt={bull:'10–20%',side:'20–30%',bear:'30%+'}[ms.r];
+  const al=[];let bad=0;
+  if(top&&A[top].w>30){bad++;al.push(['',`${top} is ${fmt(A[top].w,0)}% of your stocks: high concentration`])}
+  if(ms.r!=='unknown'&&cp<low){bad++;al.push(['',`Cash is ${fmt(cp,0)}% of net worth, below the target for this market (${tgt})`])}
+  if(S.length&&win<S.length/2){bad++;al.push(['r',`${S.length-win} of ${S.length} stocks are at a loss`])}
+  const stale=S.filter(s=>A[s].st>=3);if(stale.length){bad++;al.push(['',`Stale prices: ${stale.join(', ')}. Update them in the Update Prices tab`])}
+  if(ms.r==='bear')al.push(['','Market is bearish: be selective and avoid rushing to average down']);
+  if(ms.r==='bull')al.push(['g','Market is bullish: supports holding and adding gradually']);
+  const ov=!S.length?['—','watch']:bad===0?['Balanced ✅','up']:bad===1?['Good, one note','watch']:['Needs attention','down'];
+  const K=(l,v,s,c='',x='',f='')=>`<div class="k ${x}${f?' clk':''}" ${f?`onclick="showPL('${f}')"`:''}><i>${l}</i><b class="${c}">${v}</b>${s?`<em>${s}</em>`:''}</div>`;
+  const M=(l,k,v)=>`<div class="k"><i>${l}</i><input data-k="${k}" data-r="${v}" value="${fmt(v)}" inputmode="decimal" onfocus="this.value=this.dataset.r;this.select()" onblur="setMoney(this)" onkeydown="if(event.key==='Enter')this.blur()"></div>`;
+  $('kpis').innerHTML=`
+  <div class="grp" style="margin-top:0">Your wealth</div><div class="kg">
+   ${K('Net worth (stocks + cash + savings)',fmt(nw)+' EGP','','','hero')}
+   ${K('Stocks value now',fmt(val)+' EGP',S.length+' stocks')}${M('Cash (EGP)','wallet',cash)}${M('Savings (EGP)','savings',sav)}</div>
+  <div class="grp">Performance</div><div class="kg">
+   ${K('Invested capital',fmt(inv)+' EGP','Cost of current holdings')}
+   ${K('Unrealized P/L',ar(un)+' '+sg(un)+' EGP',sg(unp)+'% vs cost · tap for details',cl(un),'','unreal')}
+   ${K('Realized P/L (sold)',sg(real)+' EGP','Tap for closed trades',cl(real),'','real')}
+   ${K('Total P/L',sg(un+real)+' EGP','',cl(un+real))}</div>
+  <div class="grp">Portfolio health</div><div class="kg">
+   ${K('Overall rating',`<span class="bdg ${ov[1]}">${ov[0]}</span>`,bad?bad+' note(s) below':'')}
+   ${K('Latest price move',dB?ar(dA)+' '+sg(dA)+' EGP':'-',dB?sg(dA/dB*100)+'%':'Log 2+ prices',dB?cl(dA):'')}
+   ${K('Winners / losers',`${win} / ${S.length-win}`,S.length?fmt(win/S.length*100,0)+'% winners':'')}
+   ${K('Largest position',top?`<span style="color:${col(top)}">${top}</span> ${fmt(A[top].w,0)}%`:'-',top?(A[top].w>30?'High concentration':'Reasonable spread'):'')}
+   ${K('Cash ratio',fmt(cp,0)+'%',ms.r==='unknown'?'':'Target '+tgt)}
+   ${K('Market EGX30',ms.last?fmt(ms.last):'-',`<span class="bdg ${REG[ms.r][1]}">${REG[ms.r][0]}</span>`)}</div>`;
+  $('alerts').innerHTML=al.map(a=>`<div class="${a[0]}">${a[1]}</div>`).join('');
+  $('cards').innerHTML=S.length?S.map(s=>{
+    const h=H[s],a=A[s],u=h.qty*(a.cp-h.avg);
+    return `<div class="card ${a.v[1]}"><div class="ch"><b style="color:${col(s)}">${s}</b><span class="bdg ${a.v[1]}">${a.v[0]}</span></div>
+    <div style="display:flex;justify-content:space-between;align-items:center"><div class="big ${cl(u)}">${ar(u)} ${sg(u)} EGP <small>(${sg(a.pct)}%)</small></div>${spark(s)}</div>
+    <div class="g4"><div><i>Price</i>${fmt(a.cp)}</div><div><i>Avg cost</i>${fmt(h.avg)}</div><div><i>Qty</i>${fq(h.qty)}</div><div><i>Value</i>${fmt(h.qty*a.cp,0)}</div>
+    <div><i>Weight</i>${fmt(a.w,1)}%</div><div><i>Last move</i>${a.ch==null?'-':`<span class="${cl(a.ch)}">${sg(a.ch)}%</span>`}</div><div><i>Trend</i>${a.tr==null?'-':a.tr?'<span class="pos">↑ Up</span>':'<span class="neg">↓ Down</span>'}</div><div><i>From peak</i>${a.dd==null?'-':'-'+fmt(a.dd,1)+'%'}</div></div>
+    <ul class="why">${a.R.map(r=>`<li class="${r[0]}">${r[1]}</li>`).join('')}</ul>
+    <div class="acts"><button onclick="openChart('${s}')">📈 Chart</button><button onclick="quick('${s}','buy')">＋ Buy</button><button onclick="quick('${s}','sell')">－ Sell</button><button onclick="hf('${s}')">History</button></div></div>`}).join('')
+    :'<div class="empty" style="grid-column:1/-1">No holdings yet. Record your first buy in the Trades tab.</div>';
+  RT=[];Object.values(H).forEach(h=>RT.push(...h.trades));RT.sort((a,b)=>new Date(b.d)-new Date(a.d));
+}
+function setMoney(el){const v=parseFloat(el.value.replace(/[^\d.\-]/g,''));data[el.dataset.k]=isNaN(v)?0:v;save();renderDash()}
 
-// ---------- Tabs ----------
-function switchTab(tabName){
-  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
-  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
-  const btn = document.querySelector(`.tab-btn[data-tab="${tabName}"]`);
-  if(btn) btn.classList.add('active');
-  document.getElementById('tab-'+tabName).classList.add('active');
-  if(tabName === 'portfolio') renderPortfolio();
-  if(tabName === 'history') renderHistory();
-  if(tabName === 'closed') renderClosed();
+/* ---------- Trades ---------- */
+function renderHist(){
+  const T=data.transactions.filter(t=>!filt||t.symbol===filt).sort((a,b)=>new Date(b.date)-new Date(a.date));
+  $('hf').innerHTML=filt?`<span style="color:${col(filt)}">${filt}</span> <button class="lnk" onclick="hf(null)">Show all</button>`:'';
+  $('hist').innerHTML=T.length?T.map(t=>{const c=t.commission||0,g=t.qty*t.price,n=t.type==='buy'?g+c:g-c;
+    return `<tr><td>${t.date}</td><td><button class="lnk" style="color:${col(t.symbol)}" onclick="hf('${t.symbol}')">${t.symbol}</button></td><td><span class="bdg ${t.type==='buy'?'up':'down'}">${t.type==='buy'?'Buy':'Sell'}</span></td><td>${fq(t.qty)}</td><td>${fmt(t.price)}</td>
+    <td><button class="lnk" style="${c>0?'':'color:var(--y)'}" onclick="editComm('${t.id}')">${fmt(c)} ✏️</button></td><td>${fmt(n)}</td><td>${esc(t.notes)||'-'}</td><td><button class="lnk" onclick="delTx('${t.id}')" title="Delete">🗑️</button></td></tr>`}).join(''):'<tr><td colspan="9" class="empty">No trades.</td></tr>';
+  $('syms').innerHTML=[...new Set(data.transactions.map(t=>t.symbol))].sort().map(s=>`<option value="${s}">`).join('');
+  hint();
 }
-document.querySelectorAll('.tab-btn').forEach(btn=>{
-  btn.addEventListener('click', ()=> switchTab(btn.dataset.tab));
-});
-
-function goToHistory(sym){
-  historyFilterSymbol = sym;
-  switchTab('history');
+function hf(s){filt=s;go('trade');renderHist()}
+function hint(){
+  const s=$('sym').value.trim().toUpperCase(),h=holdings()[s],q=h?h.qty:0;
+  $('hint').textContent=!s?'':$('typ').value==='sell'?(q>0?`Available to sell of ${s}: ${fq(q)} shares`:`You don't own ${s}: a sell can't be saved`):(q>0?`You currently hold ${fq(q)} shares of ${s}`:`${s} is a new position`);
 }
-function clearHistoryFilter(){
-  historyFilterSymbol = null;
-  renderHistory();
-}
-function goToPortfolioFiltered(filterType){
-  if(filterType==='realized'){ switchTab('closed'); return; }
-  portfolioFilter = filterType;
-  switchTab('portfolio');
-}
-function clearPortfolioFilter(){
-  portfolioFilter = null;
-  renderPortfolio();
-}
-
-// ---------- Symbol colors ----------
-const SYMBOL_COLORS = ['#60a5fa','#f472b6','#34d399','#fbbf24','#a78bfa','#22d3ee','#fb923c','#4ade80','#f87171','#818cf8','#e879f9','#2dd4bf'];
-function symbolColor(sym){
-  let hash = 0;
-  for(let i=0;i<sym.length;i++){ hash = sym.charCodeAt(i) + ((hash << 5) - hash); }
-  const idx = Math.abs(hash) % SYMBOL_COLORS.length;
-  return SYMBOL_COLORS[idx];
-}
-function symbolLink(sym){
-  return `<button type="button" class="symbol-link" style="color:${symbolColor(sym)}" onclick="goToHistory('${sym}')">${sym}</button>`;
-}
-
-// default date = today
-document.getElementById('date').value = new Date().toISOString().slice(0,10);
-
-// ---------- Live Total preview ----------
-function updateTotalPreview(){
-  const type = document.getElementById('type').value;
-  const qty = parseFloat(document.getElementById('qty').value) || 0;
-  const price = parseFloat(document.getElementById('price').value) || 0;
-  const commission = parseFloat(document.getElementById('commission').value) || 0;
-  const gross = qty * price;
-  const total = type === 'buy' ? gross + commission : gross - commission;
-  document.getElementById('totalPreview').value = fmt(total) + ' EGP';
-}
-['qty','price','commission'].forEach(id=>{
-  document.getElementById(id).addEventListener('input', updateTotalPreview);
-});
-document.getElementById('type').addEventListener('change', updateTotalPreview);
-
-// ---------- Available quantity hint ----------
-function updateAvailableQtyInfo(){
-  const raw = document.getElementById('symbol').value.trim();
-  const noteEl = document.getElementById('availableQtyNote');
-  if(!raw){ noteEl.textContent = ''; return; }
-  const sym = raw.toUpperCase();
-  const type = document.getElementById('type').value;
-  const holdings = computeHoldings();
-  const qty = holdings[sym] ? holdings[sym].qty : 0;
-  if(type === 'sell'){
-    noteEl.textContent = qty > 0
-      ? `Available to sell for ${sym}: ${round(qty)} share(s).`
-      : `You currently hold no shares of ${sym} — a sell can't be saved.`;
-  } else {
-    noteEl.textContent = qty > 0
-      ? `You currently hold ${round(qty)} share(s) of ${sym}.`
-      : `No existing position in ${sym} yet — this will be a new holding.`;
-  }
-}
-document.getElementById('symbol').addEventListener('input', updateAvailableQtyInfo);
-document.getElementById('type').addEventListener('change', updateAvailableQtyInfo);
-
-// ---------- Form ----------
-document.getElementById('txForm').addEventListener('submit', function(e){
+['sym','typ'].forEach(i=>$(i).addEventListener('input',hint));
+$('f').addEventListener('submit',e=>{
   e.preventDefault();
-  const symbol = document.getElementById('symbol').value.trim();
-  const type = document.getElementById('type').value;
-  const qty = parseFloat(document.getElementById('qty').value);
-  const price = parseFloat(document.getElementById('price').value);
-  const commission = parseFloat(document.getElementById('commission').value) || 0;
-  const date = document.getElementById('date').value;
-  const notes = document.getElementById('notes').value.trim();
-
-  if(!symbol || !qty || qty<=0 || price<0 || commission<0 || !date){
-    alert('Please make sure all required fields are filled in correctly.');
-    return;
-  }
-
-  if(type === 'sell'){
-    const holdings = computeHoldings();
-    const key = symbol.toUpperCase();
-    const current = holdings[key] ? holdings[key].qty : 0;
-    if(qty > current + 0.0000001){
-      alert(`Transaction blocked: available quantity of "${symbol}" is only ${round(current)}, but you're trying to sell ${qty}. The trade was not saved.`);
-      return;
-    }
-  }
-
-  data.transactions.push({
-    id: Date.now() + Math.random().toString(16).slice(2),
-    symbol: symbol.toUpperCase(),
-    type, qty, price, commission, date, notes
-  });
-  saveData();
-  this.reset();
-  document.getElementById('date').value = new Date().toISOString().slice(0,10);
-  document.getElementById('commission').value = 0;
-  updateTotalPreview();
-  updateAvailableQtyInfo();
-  renderAll();
-  alert('Trade saved successfully ✅');
+  const s=$('sym').value.trim().toUpperCase().replace(/[<>"'&\\]/g,''),type=$('typ').value,qty=parseFloat($('qty').value),price=parseFloat($('prc').value),com=parseFloat($('com').value)||0,date=$('dt').value;
+  if(!s||!(qty>0)||isNaN(price)||price<0||com<0||!date){alert('Please fill the required fields with valid values.');return}
+  if(type==='sell'){const h=holdings()[s],q=h?h.qty:0;if(qty>q+1e-7){alert(`Trade not saved: you only have ${fq(q)} of ${s}.`);return}}
+  data.transactions.push({id:Date.now()+Math.random().toString(16).slice(2),symbol:s,type,qty,price,commission:com,date,notes:$('nts').value.trim()});
+  save();e.target.reset();$('dt').value=day(new Date());$('com').value=0;renderAll();toast('✅ Trade saved');
 });
+function quick(s,t){go('trade');$('sym').value=s;$('typ').value=t;hint();$('qty').focus()}
+function editComm(id){
+  const t=data.transactions.find(x=>x.id===id);if(!t)return;
+  const v=prompt(`Commission for ${t.symbol} (${t.date}) in EGP:`,t.commission||0);if(v===null)return;
+  const c=parseFloat(v);if(isNaN(c)||c<0){alert('Enter a valid number');return}
+  t.commission=c;save();renderAll();toast('✅ Commission saved');
+}
+function delTx(id){if(!confirm('Delete this trade?'))return;data.transactions=data.transactions.filter(t=>t.id!==id);save();renderAll()}
 
-// ---------- Core calculations ----------
-function computeHoldings(){
-  // returns { SYMBOL: {qty, avgCost, realizedPL, totalBoughtQty} }
-  const sorted = [...data.transactions].sort((a,b)=> new Date(a.date) - new Date(b.date));
-  const holdings = {};
-  sorted.forEach(tx=>{
-    if(!holdings[tx.symbol]){
-      holdings[tx.symbol] = { qty:0, avgCost:0, realizedPL:0, totalBoughtQty:0, trades:[] };
-    }
-    const h = holdings[tx.symbol];
-    const commission = tx.commission || 0;
-    if(tx.type === 'buy'){
-      const totalCostBefore = h.qty * h.avgCost;
-      const newQty = h.qty + tx.qty;
-      const totalCostAfter = totalCostBefore + (tx.qty * tx.price) + commission;
-      h.avgCost = newQty > 0 ? totalCostAfter / newQty : 0;
-      h.qty = newQty;
-      h.totalBoughtQty += tx.qty;
-    } else {
-      const sellQty = Math.min(tx.qty, h.qty);
-      const commissionAllocated = tx.qty > 0 ? commission * (sellQty / tx.qty) : 0;
-      const netProceeds = (sellQty * tx.price) - commissionAllocated;
-      const pl = netProceeds - (h.avgCost * sellQty);
-      h.realizedPL += pl;
-      h.trades.push({date:tx.date, symbol:tx.symbol, qty:sellQty, avg:h.avgCost, price:tx.price, commission:commissionAllocated, pl, pct: h.avgCost>0 ? pl/(h.avgCost*sellQty)*100 : 0});
-      h.qty = h.qty - sellQty;
-      if(h.qty <= 0.0000001){ h.qty = 0; }
-    }
+/* ---------- Update prices ---------- */
+function renderPrice(){
+  const H=holdings(),S=Object.keys(H).filter(s=>H[s].qty>0).sort(),today=day(new Date());
+  if(!$('pd').value)$('pd').value=today;
+  const m=mkt();$('pe').value='';$('pe').placeholder=m.length?'Last: '+fmt(m[m.length-1].v):'EGX30';
+  $('pb').innerHTML=S.length?S.map(s=>{const c=px(s),t=data.priceUpdatedAt[s],f=t&&day(t)===today;
+    return `<tr><td style="color:${col(s)}"><b>${s}</b></td><td>${fmt(c)}</td><td style="color:var(--m)">${t?new Date(t).toLocaleDateString('en-GB'):'Never'} ${f?'✅':'⚠️'}</td>
+    <td><input type="number" step="any" min="0" style="width:120px" data-s="${s}" data-l="${c}" placeholder="${c}" oninput="pv(this)"></td><td></td></tr>`}).join(''):'<tr><td colspan="5" class="empty">No open positions.</td></tr>';
+}
+function pv(el){const v=parseFloat(el.value),l=parseFloat(el.dataset.l),c=el.closest('tr').lastElementChild;c.innerHTML=isNaN(v)||!l?'':`<span class="${cl(v-l)}">${ar(v-l)} ${sg((v/l-1)*100)}%</span>`}
+function savePrices(){
+  const d=$('pd').value;if(!d){alert('Choose a date');return}
+  if(d>day(new Date())){alert('Future dates are not allowed');return}
+  const iso=d===day(new Date())?new Date().toISOString():new Date(d+'T15:00:00').toISOString();let n=0,m=0;
+  document.querySelectorAll('#pb input[data-s]').forEach(el=>{
+    const v=parseFloat(el.value);if(el.value===''||isNaN(v)||v<0)return;
+    setHist(el.dataset.s,hist(el.dataset.s).filter(x=>day(x.t)!==d).concat({t:iso,p:v}));n++;
   });
-  return holdings;
+  const e=parseFloat($('pe').value);
+  if(e>0){data.marketHistory=mkt().filter(x=>day(x.t)!==d).concat({t:iso,v:e});m=1}
+  if(!n&&!m){alert('You did not enter any price');return}
+  save();renderAll();renderPrice();toast(`✅ Saved ${n} price(s)${m?' + EGX30':''}`);
 }
 
-function getCurrentPrice(symbol){
-  if(data.currentPrices[symbol] !== undefined) return data.currentPrices[symbol];
-  const txs = data.transactions.filter(t=>t.symbol===symbol);
-  if(txs.length){
-    const sorted = [...txs].sort((a,b)=> new Date(b.date)-new Date(a.date));
-    return sorted[0].price;
-  }
-  return 0;
+/* ---------- Backup ---------- */
+function exportJ(){
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify({app:'Stock Tracker',version:1,exportedAt:new Date().toISOString(),data},null,2)],{type:'application/json'}));
+  a.download='stock-backup-'+day(new Date())+'.json';document.body.appendChild(a);a.click();a.remove();
+}
+function importJ(f){
+  if(!f)return;const r=new FileReader();
+  r.onload=e=>{let p;try{p=JSON.parse(e.target.result)}catch(_){alert('Not a valid JSON file');return}
+    const d=p&&p.data?p.data:p;if(!d||!Array.isArray(d.transactions)){alert('This is not a valid backup file');return}
+    if(!confirm('This replaces ALL your current data with the backup and cannot be undone. Continue?'))return;
+    data=d;norm();save();renderAll();toast('✅ Restored');};
+  r.readAsText(f);
 }
 
-function round(n){ return Math.round(n*100)/100; }
-function fmt(n){
-  if(n===undefined || n===null || isNaN(n)) return '-';
-  return n.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+/* ---------- init ---------- */
+function go(t){
+  document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
+  document.querySelectorAll('section').forEach(s=>s.classList.toggle('on',s.id==='t-'+t));
+  if(t==='price')renderPrice();setNH();
+  scrollTo(0,0);
 }
-function fmtEGP(n){
-  if(n===undefined || n===null || isNaN(n)) return '-';
-  return fmt(n) + ' EGP';
-}
-function fmtTimestamp(iso){
-  if(!iso) return 'never updated (using last trade price)';
-  const d = new Date(iso);
-  return 'updated ' + d.toLocaleString('en-US', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
-}
-
-// ---------- Recommendation: P/L % vs Avg Buy Price, with up/down arrow ----------
-function getPLIndicator(h, cp){
-  let pct, basisValid = true;
-  if(h.qty > 0){
-    const basis = h.qty * h.avgCost;
-    if(basis <= 0){ basisValid = false; }
-    else{
-      const unrealized = h.qty * (cp - h.avgCost);
-      pct = (unrealized / basis) * 100;
-    }
-  } else {
-    const basis = (h.totalBoughtQty || 0) * h.avgCost;
-    if(basis <= 0){ basisValid = false; }
-    else{
-      pct = (h.realizedPL / basis) * 100;
-    }
-  }
-  if(!basisValid || pct === undefined || isNaN(pct)){
-    return {label:'—', cls:'badge-watch'};
-  }
-  const arrow = pct >= 0 ? '▲' : '▼';
-  const cls = pct >= 0 ? 'badge-up' : 'badge-down';
-  const sign = pct >= 0 ? '+' : '';
-  return {label:`${arrow} ${sign}${round(pct)}%`, cls};
-}
-
-// ---------- Recommendation (market-aware verdict + P/L %) ----------
-function getRecommendation(sym, h, cp, tv){
-  const pl = getPLIndicator(h, cp);
-  if(h.qty<=0) return { label:`Closed ${pl.label}`, cls:'badge-closed' };
-  const tips = getAdvice(sym, h, cp, tv===undefined ? totalMarketValue(computeHoldings()) : tv);
-  if(getHistory(sym).length<3) return { label:`Hold — add prices ${pl.label}`, cls:'badge-watch' };
-  const sc = tips.reduce((a,t)=>a+(t.s||0),0);
-  if(sc>=2.5) return { label:`Accumulate ${pl.label}`, cls:'badge-up' };
-  if(sc>=0.5) return { label:`Hold ${pl.label}`, cls:'badge-up' };
-  if(sc>-1.5) return { label:`Watch ${pl.label}`, cls:'badge-watch' };
-  return { label:`Reduce ${pl.label}`, cls:'badge-down' };
-}
-
-// ---------- Render: Summary ----------
-function renderSummary(){
-  const holdings = computeHoldings();
-  let totalInvested = 0, totalCurrentValue = 0, totalRealized = 0, totalUnrealized = 0;
-  Object.keys(holdings).forEach(sym=>{
-    const h = holdings[sym];
-    const cp = getCurrentPrice(sym);
-    totalInvested += h.qty * h.avgCost;
-    totalCurrentValue += h.qty * cp;
-    totalRealized += h.realizedPL;
-    totalUnrealized += h.qty * (cp - h.avgCost);
-  });
-
-  const wallet = data.wallet || 0;
-  const netWorth = wallet + totalCurrentValue;
-
-  const beforeWallet = [
-    {label:'Stocks in Portfolio', value: Object.values(holdings).filter(h=>h.qty>0).length, cls:''},
-    {label:'Total Capital Invested', value: fmtEGP(totalInvested), cls:''},
-    {label:'Current Portfolio Value', value: fmtEGP(totalCurrentValue), cls:''},
-  ];
-  const afterWallet = [
-    {label:'Open P/L (Unrealized)', value: fmtEGP(totalUnrealized), cls: totalUnrealized>=0?'pos':'neg', filter:'unrealized', emphasis:true},
-    {label:'Closed P/L (Realized)', value: fmtEGP(totalRealized), cls: totalRealized>=0?'pos':'neg', filter:'realized', emphasis:true},
-    {label:'Net P/L', value: fmtEGP(totalRealized + totalUnrealized), cls: (totalRealized + totalUnrealized)>=0?'pos':'neg'},
-  ];
-
-  const cardHtml = c=>{
-    const labelHtml = `<div class="label">${c.label}</div>`;
-    const valueHtml = c.filter
-      ? `<button type="button" class="value ${c.cls}${c.emphasis ? ' value-emphasis' : ''} value-link" onclick="goToPortfolioFiltered('${c.filter}')">${c.value}</button>`
-      : `<div class="value ${c.cls}${c.emphasis ? ' value-emphasis' : ''}">${c.value}</div>`;
-    return `
-    <div class="stat-card">
-      ${labelHtml}
-      ${valueHtml}
-    </div>
-  `;
-  };
-
-  const walletHtml = `
-    <div class="stat-card">
-      <div class="label">Wallet</div>
-      <input type="text" inputmode="decimal" class="wallet-input" value="${fmtEGP(wallet)}" data-raw="${wallet}"
-        onfocus="this.value = this.dataset.raw; this.select();"
-        onblur="updateWallet(this)"
-        placeholder="Cash on hand (EGP)">
-    </div>
-  `;
-  const netWorthHtml = `
-    <div class="stat-card">
-      <div class="label">Net Worth</div>
-      <div class="value">${fmtEGP(netWorth)}</div>
-    </div>
-  `;
-
-  document.getElementById('summaryGrid').innerHTML =
-    beforeWallet.map(cardHtml).join('') +
-    walletHtml +
-    netWorthHtml +
-    afterWallet.map(cardHtml).join('');
-}
-
-function updateWallet(el){
-  const cleaned = el.value.replace(/,/g,'').replace(/EGP/i,'').trim();
-  const val = parseFloat(cleaned);
-  data.wallet = isNaN(val) ? 0 : val;
-  saveData();
-  renderSummary();
-}
-
-// ---------- Price history ----------
-let stockOpen = null;
-const hk = s => s.replace(/[.#$\/\[\]]/g,'_');
-function getHistory(sym){
-  const arr = data.priceHistory && data.priceHistory[hk(sym)];
-  return arr ? Object.values(arr).sort((a,b)=> new Date(a.t)-new Date(b.t)) : [];
-}
-function setHistory(sym, list){
-  if(!data.priceHistory) data.priceHistory = {};
-  list.sort((a,b)=> new Date(a.t)-new Date(b.t));
-  if(list.length){
-    data.priceHistory[hk(sym)] = list;
-    const last = list[list.length-1];
-    data.currentPrices[sym] = last.p;
-    data.priceUpdatedAt[sym] = last.t;
-  } else { delete data.priceHistory[hk(sym)]; }
-}
-function addPricePoint(sym, price, iso){
-  const list = getHistory(sym);
-  list.push({t:iso, p:price});
-  setHistory(sym, list);
-}
-function deletePricePoint(sym, idx){
-  if(!confirm('Delete this price entry?')) return;
-  const list = getHistory(sym); list.splice(idx,1);
-  setHistory(sym, list);
-  saveData(); renderAll();
-}
-function addPriceFromModal(e, sym){
-  e.preventDefault();
-  const price = parseFloat(document.getElementById('mPrice').value);
-  const d = document.getElementById('mDate').value;
-  if(isNaN(price) || price<0 || !d){ alert('Enter a valid price and date.'); return false; }
-  addPricePoint(sym, price, new Date(d).toISOString());
-  saveData(); renderAll();
-  return false;
-}
-function updatePrice(el){
-  const sym = el.dataset.symbol;
-  const val = parseFloat(el.value);
-  if(isNaN(val) || val<0) return;
-  addPricePoint(sym, val, new Date().toISOString());
-  saveData(); renderSummary(); renderPortfolio();
-  if(stockOpen) renderStock();
-}
-function totalMarketValue(hs){
-  return Object.keys(hs).reduce((a,s)=> a + hs[s].qty*getCurrentPrice(s), 0);
-}
-
-// ---------- EGX30 market tracker ----------
-function getMarket(){
-  const a=data.marketHistory;
-  return a ? Object.values(a).sort((x,y)=>new Date(x.t)-new Date(y.t)) : [];
-}
-function addMarketPoint(){
-  const v=parseFloat(document.getElementById('egxInput').value);
-  if(isNaN(v)||v<=0){ alert('Enter the current EGX30 value.'); return; }
-  const l=getMarket(); l.push({t:new Date().toISOString(), v});
-  data.marketHistory=l; saveData(); renderAll();
-}
-function marketState(){
-  const m=getMarket();
-  if(m.length<2) return {regime:'unknown', last:m.length?m[0].v:0, ch:0, ret:0, t0:null};
-  const n=Math.min(5,m.length), w=m.slice(-n), last=m[m.length-1].v;
-  const sma=w.reduce((a,x)=>a+x.v,0)/n, ch=(last/m[m.length-2].v-1)*100, trend=(last/sma-1)*100;
-  return {regime: trend>0.3&&ch>=0?'bull':(trend<-0.3&&ch<=0?'bear':'side'), last, ch, ret:(last/w[0].v-1)*100, t0:new Date(w[0].t)};
-}
-function tradingDaysSince(iso){ // EGX trades Sunday–Thursday
-  let d=new Date(iso), now=new Date(), c=0;
-  d.setHours(0,0,0,0);
-  while(d<now && c<30){ d.setDate(d.getDate()+1); const w=d.getDay(); if(w!==5 && w!==6) c++; }
-  return c;
-}
-function renderMarket(){
-  const ms=marketState(), hs=computeHoldings(), tv=totalMarketValue(hs), wallet=data.wallet||0, nw=wallet+tv;
-  const meta={bull:['🟢 Uptrend','badge-up'],bear:['🔴 Downtrend','badge-down'],side:['🟡 Sideways','badge-watch'],unknown:['⚪ Add 2+ EGX30 entries','badge-watch']}[ms.regime];
-  const cash=nw>0?wallet/nw*100:0;
-  const target={bull:'10–20%',side:'20–30%',bear:'30%+'}[ms.regime];
-  const advice = ms.regime==='unknown' ? 'Log the EGX30 value each trading day (Sun–Thu) and the system will read the market trend for you.'
-    : `Cash is ${fmt(cash)}% of your net worth. ${ms.regime==='bear'?'Market is weak: be selective, avoid averaging down, keep a bigger cash buffer':ms.regime==='bull'?'Market is supportive: let winners run and add gradually on pullbacks':'Market is range-bound: favor stocks beating EGX30 and avoid chasing spikes'} (suggested cash: ${target}).`;
-  const syms=Object.keys(hs).filter(x=>hs[x].qty>0);
-  const segs=syms.map(x=>({n:x,v:hs[x].qty*getCurrentPrice(x),c:symbolColor(x)})).concat(wallet>0?[{n:'Cash',v:wallet,c:'#64748b'}]:[]);
-  const bar=nw>0?`<div class="alloc">${segs.map(g=>`<span style="width:${g.v/nw*100}%;background:${g.c}" title="${g.n} ${fmt(g.v/nw*100)}%"></span>`).join('')}</div><div class="mini">${segs.map(g=>`<span><i class="dot" style="background:${g.c}"></i>${g.n} <b>${fmt(g.v/nw*100)}%</b></span>`).join('')}</div>`:'';
-  document.getElementById('marketBar').innerHTML=`
-    <div class="mk-row"><div><div class="label">EGX30</div><div class="mk-val">${ms.last?fmt(ms.last):'—'} ${ms.regime!=='unknown'?`<span class="${ms.ch>=0?'pos':'neg'}" style="font-size:14px">${ms.ch>=0?'▲ +':'▼ '}${fmt(ms.ch)}%</span>`:''}</div></div>
-    <span class="badge ${meta[1]}">${meta[0]}</span>
-    <div class="mk-in"><input type="number" id="egxInput" step="any" placeholder="Today's EGX30 close"><button class="btn btn-primary" onclick="addMarketPoint()">Save</button></div></div>
-    <div class="note" style="margin:8px 0">${advice}</div>${bar}`;
-}
-
-// ---------- Advice engine (own price history + EGX30 context) ----------
-function getAdvice(sym, h, cp, totalValue){
-  const tips=[], add=(c,m,s,imp)=>tips.push({c,m,s:s||0,imp});
-  if(!h || h.qty<=0){ add('info','Position closed — see the Closed Trades tab for the result.'); return tips; }
-  const hist=getHistory(sym), px=hist.map(x=>x.p), ms=marketState(), pct=(cp/h.avgCost-1)*100;
-  if(px.length>=2){
-    const ch=(px[px.length-1]/px[px.length-2]-1)*100;
-    if(Math.abs(ch)>=10) add('warn',`Last entry moved ${ch>=0?'+':''}${fmt(ch)}% — unusually large for EGX; double-check the price.`,0,1);
-    else add(ch>=0?'good':'warn',`Last move: ${ch>=0?'+':''}${fmt(ch)}% vs the previous entry.`,ch>=0?0.5:-0.5);
-  }
-  if(px.length>=3){
-    const n=Math.min(5,px.length), sma=px.slice(-n).reduce((a,b)=>a+b,0)/n;
-    add(cp>=sma?'good':'warn',`${cp>=sma?'Above':'Below'} its ${n}-entry average (${fmt(sma)}) — short-term trend ${cp>=sma?'up':'down'}.`,cp>=sma?1:-1);
-    const peak=Math.max(...px), dd=(1-cp/peak)*100;
-    if(pct>2&&dd>=5) add('warn',`${fmt(dd)}% below its recorded peak (${fmt(peak)}) — consider securing part of the gain.`,-1,1);
-    if(pct<=-15&&cp<sma) add('bad',`Down ${fmt(-pct)}% with a weak trend — review why you bought; avoid averaging down blindly.`,-1,1);
-  } else add('info','Add at least 3 price entries to unlock trend signals.');
-  if(ms.regime==='bull') add('good','EGX30 is in an uptrend — supportive for holding and adding.',1);
-  else if(ms.regime==='bear') add('warn','EGX30 is weak — be selective and keep extra cash.',-1,1);
-  else if(ms.regime==='side') add('info','EGX30 is moving sideways — favor relative winners.');
-  if(ms.t0 && px.length>=2){
-    const prior=hist.filter(x=>new Date(x.t)<=ms.t0), base=(prior.length?prior[prior.length-1]:hist[0]).p, rs=(cp/base-1)*100-ms.ret;
-    add(rs>=0?'good':'warn',`${rs>=0?'Outperforming':'Lagging'} EGX30 by ${fmt(Math.abs(rs))} pts over the same window.`,rs>=0?1:-1);
-  }
-  if(pct>=15) add('good',`Up ${fmt(pct)}% on cost — a good moment to consider taking partial profit.`,-0.5,1);
-  if(totalValue>0){ const w=h.qty*cp/totalValue*100; if(w>30) add('warn',`${fmt(w)}% of your open portfolio is in this stock — high concentration.`,-1,1); }
-  const t=data.priceUpdatedAt[sym];
-  if(t && tradingDaysSince(t)>=3) add('warn',`Price not updated for ${tradingDaysSince(t)} trading days — update it for accurate advice.`,0,1);
-  return tips;
-}
-function renderInsights(hs, tv, syms){
-  const out=[], ms=marketState();
-  syms.forEach(s=>getAdvice(s,hs[s],getCurrentPrice(s),tv).filter(t=>t.imp).forEach(t=>
-    out.push(`<div class="tip ${t.c}"><strong style="color:${symbolColor(s)}">${s}</strong> — ${t.m}</div>`)));
-  document.getElementById('insights').innerHTML=out.join('')||(syms.length?'<div class="tip info">No alerts — your open positions look balanced.</div>':'');
-}
-
-// ---------- Chart (inline SVG, no libraries) ----------
-function sparkline(sym){
-  const px=getHistory(sym).slice(-20).map(x=>x.p);
-  if(px.length<2) return '<div class="spark-empty">no history yet</div>';
-  const mn=Math.min(...px), mx=Math.max(...px), r=mx-mn||1, up=px[px.length-1]>=px[0];
-  const pts=px.map((v,i)=>`${(i/(px.length-1)*118+1).toFixed(1)},${(34-(v-mn)/r*30).toFixed(1)}`).join(' ');
-  return `<svg viewBox="0 0 120 38" class="spark"><polyline fill="none" stroke="${up?'#22c55e':'#ef4444'}" stroke-width="2" points="${pts}"/></svg>`;
-}
-function drawChart(sym, h){
-  const pts=getHistory(sym).map(x=>({x:+new Date(x.t),y:x.p}));
-  const trades=data.transactions.filter(t=>t.symbol===sym).map(t=>({x:+new Date(t.date),y:t.price,type:t.type,qty:t.qty}));
-  const xs=pts.map(p=>p.x).concat(trades.map(t=>t.x));
-  if(!xs.length) return '<div class="empty">No price data yet.</div>';
-  const ys=pts.map(p=>p.y).concat(trades.map(t=>t.y)); if(h) ys.push(h.avgCost);
-  let x0=Math.min(...xs), x1=Math.max(...xs); if(x1===x0) x1=x0+864e5;
-  let y0=Math.min(...ys), y1=Math.max(...ys); const pad=(y1-y0||y1*0.02||1)*0.12; y0-=pad; y1+=pad;
-  const W=860,H=320,L=58,R=16,T=14,B=28;
-  const X=v=>L+(v-x0)/(x1-x0)*(W-L-R), Y=v=>T+(1-(v-y0)/(y1-y0))*(H-T-B);
-  let s=`<svg class="chart" viewBox="0 0 ${W} ${H}">`;
-  for(let i=0;i<=4;i++){ const v=y0+(y1-y0)*i/4; s+=`<line x1="${L}" x2="${W-R}" y1="${Y(v)}" y2="${Y(v)}" stroke="#33455e" stroke-width=".6"/><text x="${L-6}" y="${Y(v)+4}" fill="#93a4bd" font-size="11" text-anchor="end">${v.toFixed(2)}</text>`; }
-  for(let i=0;i<=3;i++){ const v=x0+(x1-x0)*i/3; s+=`<text x="${X(v)}" y="${H-8}" fill="#93a4bd" font-size="11" text-anchor="middle">${new Date(v).toLocaleDateString('en-GB',{day:'2-digit',month:'short'})}</text>`; }
-  if(h) s+=`<line x1="${L}" x2="${W-R}" y1="${Y(h.avgCost)}" y2="${Y(h.avgCost)}" stroke="#f59e0b" stroke-dasharray="5 4"/><text x="${W-R-2}" y="${Y(h.avgCost)-3}" fill="#f59e0b" font-size="10" text-anchor="end">Your avg cost ${h.avgCost.toFixed(2)}</text>`;
-  if(pts.length>1) s+=`<polyline fill="none" stroke="#3b82f6" stroke-width="2" points="${pts.map(p=>X(p.x)+','+Y(p.y)).join(' ')}"/>`;
-  pts.forEach(p=>{ s+=`<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="3.5" fill="#3b82f6"><title>${fmt(p.y)} EGP — ${new Date(p.x).toLocaleString('en-GB')}</title></circle>`; });
-  trades.forEach(t=>{ const cx=X(t.x), cy=Y(t.y), b=t.type==='buy';
-    s+=`<path d="M${cx} ${b?cy-8:cy+8}l6 ${b?12:-12}h-12z" fill="${b?'#22c55e':'#ef4444'}"><title>${b?'Buy':'Sell'} ${round(t.qty)} @ ${fmt(t.y)}</title></path>`; });
-  return s+'</svg><div class="mini">● price entries &nbsp; ▲ buy &nbsp; ▼ sell &nbsp; dashed = your average cost</div>';
-}
-
-// ---------- Stock detail modal ----------
-function openStock(sym){ stockOpen=sym; renderStock(); document.getElementById('stockModal').classList.add('show'); }
-function closeStock(){ stockOpen=null; document.getElementById('stockModal').classList.remove('show'); }
-document.addEventListener('keydown', e=>{ if(e.key==='Escape' && stockOpen) closeStock(); });
-function renderStock(){
-  const sym=stockOpen; if(!sym) return;
-  const hs=computeHoldings(), h=hs[sym]||{qty:0,avgCost:0,realizedPL:0};
-  const cp=getCurrentPrice(sym), tv=totalMarketValue(hs), hist=getHistory(sym), open=h.qty>0;
-  const un = open ? h.qty*(cp-h.avgCost) : 0;
-  const rows = hist.map((x,i)=>({x,i})).reverse().slice(0,40).map(({x,i})=>
-    `<tr><td>${new Date(x.t).toLocaleString('en-GB')}</td><td>${fmt(x.p)}</td><td><button class="btn-danger-icon" onclick="deletePricePoint('${sym}',${i})" title="Delete">🗑️</button></td></tr>`).join('');
-  const now = new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,16);
-  document.getElementById('stockBox').innerHTML = `
-    <div class="panel-header"><p class="section-title"><span style="color:${symbolColor(sym)}">${sym}</span> — price history</p><button class="btn btn-ghost" onclick="closeStock()">✕ Close</button></div>
-    <div class="mini"><span>Current price: <b>${fmtEGP(cp)}</b></span>${open?`<span>Qty held: <b>${round(h.qty)}</b></span><span>Avg cost: <b>${fmtEGP(h.avgCost)}</b></span><span>Unrealized: <b class="${un>=0?'pos':'neg'}">${fmtEGP(un)}</b></span>`:'<span>No open position</span>'}<span>Closed-sale profit (separate): <b class="${h.realizedPL>=0?'pos':'neg'}">${fmtEGP(h.realizedPL)}</b></span></div>
-    ${drawChart(sym, open?h:null)}
-    <div class="tips">${getAdvice(sym,h,cp,tv).map(t=>`<div class="tip ${t.c}">${t.m}</div>`).join('')}</div>
-    <form onsubmit="return addPriceFromModal(event,'${sym}')" style="margin-bottom:12px;">
-      <div><label>New price (EGP)</label><input type="number" id="mPrice" step="any" min="0" required></div>
-      <div><label>Date &amp; time</label><input type="datetime-local" id="mDate" value="${now}" required></div>
-      <div><button type="submit" class="btn btn-primary" style="width:100%;">Add price</button></div>
-    </form>
-    <div class="table-wrap"><table><thead><tr><th>Recorded at</th><th>Price (EGP)</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="3" class="empty">No prices recorded yet.</td></tr>'}</tbody></table></div>`;
-}
-
-// ---------- Render: Closed trades ----------
-function renderClosed(){
-  const hs=computeHoldings(); let tr=[];
-  Object.values(hs).forEach(h=> tr.push(...h.trades));
-  tr.sort((a,b)=> new Date(b.date)-new Date(a.date));
-  const tot=tr.reduce((a,t)=>a+t.pl,0), wins=tr.filter(t=>t.pl>0).length;
-  const best=tr.length?Math.max(...tr.map(t=>t.pl)):0, worst=tr.length?Math.min(...tr.map(t=>t.pl)):0;
-  document.getElementById('closedStats').innerHTML = `<span>Total realized: <b class="${tot>=0?'pos':'neg'}">${fmtEGP(tot)}</b></span><span>Sales: <b>${tr.length}</b></span><span>Win rate: <b>${tr.length?round(wins/tr.length*100):0}%</b></span><span>Best: <b class="pos">${fmtEGP(best)}</b></span><span>Worst: <b class="neg">${fmtEGP(worst)}</b></span>`;
-  document.getElementById('closedBody').innerHTML = tr.length ? tr.map(t=>`<tr>
-    <td>${t.date}</td><td>${symbolLink(t.symbol)}</td><td>${round(t.qty)}</td><td>${fmt(t.avg)}</td><td>${fmt(t.price)}</td><td>${fmt(t.commission)}</td>
-    <td class="${t.pl>=0?'pos':'neg'}">${fmtEGP(t.pl)}</td><td><span class="badge ${t.pl>=0?'badge-up':'badge-down'}">${t.pl>=0?'▲ +':'▼ '}${round(t.pct)}%</span></td></tr>`).join('')
-    : '<tr><td colspan="8" class="empty">No sales yet. Closed trades will appear here.</td></tr>';
-}
-
-// ---------- Render: Portfolio (open positions as cards) ----------
-function quickTrade(sym, type){
-  switchTab('add');
-  document.getElementById('symbol').value=sym; document.getElementById('type').value=type;
-  updateAvailableQtyInfo(); updateTotalPreview(); document.getElementById('qty').focus();
-}
-function renderPortfolio(){
-  const hs=computeHoldings(), tv=totalMarketValue(hs);
-  const syms=Object.keys(hs).filter(s=>hs[s].qty>0).sort((a,b)=>hs[b].qty*getCurrentPrice(b)-hs[a].qty*getCurrentPrice(a));
-  document.getElementById('portfolioFilterBar').classList.remove('show');
-  renderInsights(hs,tv,syms);
-  const grid=document.getElementById('posGrid');
-  if(!syms.length){ grid.innerHTML='<div class="empty" style="grid-column:1/-1">No open positions. Use “Add Trade” to record a buy.</div>'; return; }
-  grid.innerHTML=syms.map(sym=>{
-    const h=hs[sym], cp=getCurrentPrice(sym), rec=getRecommendation(sym,h,cp,tv), un=h.qty*(cp-h.avgCost), pc=(cp/h.avgCost-1)*100;
-    return `<div class="pos-card">
-      <div class="pc-head">${symbolLink(sym)}<span class="badge ${rec.cls}">${rec.label}</span></div>
-      <div class="pc-main"><div><input type="number" class="price-input" step="any" value="${cp}" data-symbol="${sym}" onchange="updatePrice(this)" title="Type a new price to log it"><span class="updated-at">${fmtTimestamp(data.priceUpdatedAt[sym])}</span></div>${sparkline(sym)}</div>
-      <div class="pc-stats"><div><span>Qty</span><b>${round(h.qty)}</b></div><div><span>Avg cost</span><b>${fmt(h.avgCost)}</b></div><div><span>Value</span><b>${fmt(h.qty*cp)}</b></div><div><span>Weight</span><b>${fmt(h.qty*cp/tv*100)}%</b></div></div>
-      <div class="pc-pl ${un>=0?'pos':'neg'}">${un>=0?'▲ +':'▼ '}${fmtEGP(un)} <small>(${pc>=0?'+':''}${fmt(pc)}%)</small></div>
-      <div class="pc-actions"><button class="btn-chart" onclick="openStock('${sym}')">📈 Chart &amp; advice</button><button class="btn-chart" onclick="quickTrade('${sym}','buy')">＋ Buy</button><button class="btn-chart" onclick="quickTrade('${sym}','sell')">－ Sell</button></div>
-    </div>`;
-  }).join('');
-}
-
-// ---------- Render: History ----------
-function renderHistory(){
-  const tbody = document.getElementById('historyBody');
-  const filterBar = document.getElementById('historyFilterBar');
-  let txs = data.transactions;
-
-  if(historyFilterSymbol){
-    txs = txs.filter(t => t.symbol === historyFilterSymbol);
-    filterBar.classList.add('show');
-    document.getElementById('historyFilterLabel').textContent = historyFilterSymbol;
-  } else {
-    filterBar.classList.remove('show');
-  }
-
-  if(txs.length === 0){
-    const msg = historyFilterSymbol ? `No transactions recorded yet for ${historyFilterSymbol}.` : 'No transactions recorded yet.';
-    tbody.innerHTML = `<tr><td colspan="9" class="empty">${msg}</td></tr>`;
-    return;
-  }
-  const sorted = [...txs].sort((a,b)=> new Date(b.date)-new Date(a.date));
-  tbody.innerHTML = sorted.map(tx=>{
-    const commission = tx.commission || 0;
-    const gross = tx.qty*tx.price;
-    const net = tx.type === 'buy' ? gross + commission : gross - commission;
-    return `
-    <tr>
-      <td>${tx.date}</td>
-      <td>${symbolLink(tx.symbol)}</td>
-      <td><span class="badge ${tx.type==='buy'?'badge-up':'badge-down'}">${tx.type==='buy'?'Buy':'Sell'}</span></td>
-      <td>${round(tx.qty)}</td>
-      <td>${fmt(tx.price)}</td>
-      <td>${fmt(commission)}</td>
-      <td>${fmt(net)}</td>
-      <td>${tx.notes || '-'}</td>
-      <td><button class="btn-danger-icon" onclick="deleteTx('${tx.id}')" title="Delete">🗑️</button></td>
-    </tr>
-  `;
-  }).join('');
-}
-
-function deleteTx(id){
-  if(!confirm('Delete this transaction?')) return;
-  data.transactions = data.transactions.filter(t=>t.id !== id);
-  saveData();
-  renderAll();
-}
-
-// ---------- Full Backup (JSON) ----------
-function exportBackup(){
-  const payload = {
-    exportedAt: new Date().toISOString(),
-    app: 'Stock Tracker',
-    version: 1,
-    data: data
-  };
-  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  const stamp = new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
-  a.href = url;
-  a.download = `stock-tracker-backup-${stamp}.json`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
-
-function importBackup(file){
-  if(!file) return;
-  const reader = new FileReader();
-  reader.onload = function(e){
-    let parsed;
-    try{
-      parsed = JSON.parse(e.target.result);
-    }catch(err){
-      alert('This file is not valid JSON and could not be read.');
-      document.getElementById('restoreFile').value = '';
-      return;
-    }
-    const incoming = parsed && parsed.data ? parsed.data : parsed;
-    if(!incoming || !Array.isArray(incoming.transactions)){
-      alert('This does not look like a valid Stock Tracker backup file.');
-      document.getElementById('restoreFile').value = '';
-      return;
-    }
-    if(!confirm('This will completely replace your current data (all transactions, prices and wallet) with the contents of this backup. This cannot be undone. Continue?')){
-      document.getElementById('restoreFile').value = '';
-      return;
-    }
-    data = {
-      transactions: incoming.transactions || [],
-      currentPrices: incoming.currentPrices || {},
-      priceUpdatedAt: incoming.priceUpdatedAt || {},
-      priceHistory: incoming.priceHistory || {},
-      marketHistory: incoming.marketHistory || [],
-      wallet: incoming.wallet || 0
-    };
-    saveData();
-    renderAll();
-    document.getElementById('restoreFile').value = '';
-    alert('Backup restored successfully ✅');
-  };
-  reader.readAsText(file);
-}
-
-// ---------- Export to Excel ----------
-function exportExcel(){
-  const holdings = computeHoldings();
-  const symbols = Object.keys(holdings);
-  let totalInvested = 0, totalCurrentValue = 0, totalRealized = 0, totalUnrealized = 0;
-
-  const portfolioRows = symbols.map(sym=>{
-    const h = holdings[sym];
-    const cp = getCurrentPrice(sym);
-    const currentValue = h.qty * cp;
-    const unrealized = h.qty * (cp - h.avgCost);
-    const rec = getRecommendation(sym, h, cp);
-    totalInvested += h.qty * h.avgCost;
-    totalCurrentValue += currentValue;
-    totalRealized += h.realizedPL;
-    totalUnrealized += unrealized;
-    return {
-      'Stock': sym,
-      'Current Qty': round(h.qty),
-      'Avg. Buy Price': round(h.avgCost),
-      'Current Price': cp,
-      'Current Value': round(currentValue),
-      'Unrealized P/L': round(unrealized),
-      'Realized P/L': round(h.realizedPL),
-      'Recommendation': rec.label
-    };
-  });
-
-  const sortedTx = [...data.transactions].sort((a,b)=> new Date(b.date)-new Date(a.date));
-  const historyRows = sortedTx.map(tx=>{
-    const commission = tx.commission || 0;
-    const gross = tx.qty*tx.price;
-    const net = tx.type === 'buy' ? gross + commission : gross - commission;
-    return {
-      'Date': tx.date,
-      'Stock': tx.symbol,
-      'Type': tx.type === 'buy' ? 'Buy' : 'Sell',
-      'Quantity': round(tx.qty),
-      'Price (EGP)': round(tx.price),
-      'Commission (EGP)': round(commission),
-      'Net Total (EGP)': round(net),
-      'Notes': tx.notes || ''
-    };
-  });
-
-  const wallet = data.wallet || 0;
-  const summaryRows = [
-    {'Metric':'Stocks in Portfolio', 'Value': symbols.filter(s=>holdings[s].qty>0).length},
-    {'Metric':'Total Capital Invested (EGP)', 'Value': round(totalInvested)},
-    {'Metric':'Current Portfolio Value (EGP)', 'Value': round(totalCurrentValue)},
-    {'Metric':'Wallet (EGP)', 'Value': round(wallet)},
-    {'Metric':'Net Worth (EGP)', 'Value': round(wallet + totalCurrentValue)},
-    {'Metric':'Unrealized P/L (EGP)', 'Value': round(totalUnrealized)},
-    {'Metric':'Realized P/L (EGP)', 'Value': round(totalRealized)},
-    {'Metric':'Net P/L (EGP)', 'Value': round(totalUnrealized + totalRealized)}
-  ];
-
-  const closedRows = [];
-  Object.values(holdings).forEach(h=>h.trades.forEach(t=>closedRows.push({'Date':t.date,'Stock':t.symbol,'Qty Sold':round(t.qty),'Avg Cost':round(t.avg),'Sell Price':round(t.price),'Commission':round(t.commission),'Realized P/L':round(t.pl),'Return %':round(t.pct)})));
-  const phRows = [];
-  symbols.forEach(sy=>getHistory(sy).forEach(x=>phRows.push({'Stock':sy,'Time':x.t,'Price':x.p})));
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(portfolioRows), 'Portfolio');
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(historyRows), 'Transaction History');
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summaryRows), 'Summary');
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(closedRows), 'Closed Trades');
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(phRows), 'Price History');
-
-  const stamp = new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
-  XLSX.writeFile(wb, `stock-tracker-export-${stamp}.xlsx`);
-}
-
-// ---------- Symbol autocomplete ----------
-function updateSymbolDatalist(){
-  const symbols = [...new Set(data.transactions.map(t=>t.symbol))].sort();
-  const listEl = document.getElementById('symbolSuggestions');
-  listEl.innerHTML = symbols.map(s=>`<option value="${s}"></option>`).join('');
-}
-
-function clearSymbolForReselect(el){
-  el.dataset.prevValue = el.value;
-  el.value = '';
-  updateAvailableQtyInfo();
-}
-function restoreSymbolIfEmpty(el){
-  if(el.value.trim() === '' && el.dataset.prevValue){
-    el.value = el.dataset.prevValue;
-  }
-  el.dataset.prevValue = '';
-  updateAvailableQtyInfo();
-}
-
-// ---------- Init ----------
-function renderAll(){
-  updateSymbolDatalist();
-  renderSummary();
-  renderPortfolio();
-  renderHistory();
-  renderClosed();
-  renderMarket();
-  if(stockOpen) renderStock();
-}
-renderAll();
+document.querySelectorAll('#nav button').forEach(b=>b.onclick=()=>go(b.dataset.t));
+function renderAll(){renderDash();renderHist()}
+$('dt').value=day(new Date());
+const setNH=()=>{const r=document.documentElement.style;r.setProperty('--nh',$('nav').offsetHeight+'px');r.setProperty('--ph',($('t-price').querySelector('.psticky').offsetHeight||0)+'px')};setNH();addEventListener('resize',setNH);
 </script>
 </body>
 </html>
