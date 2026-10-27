@@ -238,6 +238,45 @@
     100%{background:transparent;}
   }
   tr.highlight-row{animation:rowFlash 1.6s ease-out;}
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;justify-content:center;align-items:flex-start;padding:20px;overflow:auto;z-index:50;}
+  .modal.show{display:flex;}
+  .modal-box{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);width:100%;max-width:920px;padding:20px;}
+  .chart{width:100%;height:auto;display:block;background:var(--panel-2);border-radius:10px;margin:10px 0;}
+  .tips{display:grid;gap:8px;margin:0 0 14px;}
+  .tips:empty{display:none;}
+  .tip{padding:9px 12px;border-radius:9px;font-size:13px;line-height:1.6;border-left:4px solid;}
+  .tip.good{background:var(--green-bg);border-color:var(--green);}
+  .tip.bad{background:var(--red-bg);border-color:var(--red);}
+  .tip.warn{background:var(--amber-bg);border-color:var(--amber);}
+  .tip.info{background:rgba(59,130,246,.12);border-color:var(--accent);}
+  .mini{display:flex;gap:18px;flex-wrap:wrap;font-size:13px;color:var(--muted);}
+  .mini b{color:var(--text);}
+  .btn-chart{background:var(--panel-2);border:1px solid var(--border);border-radius:8px;cursor:pointer;padding:4px 9px;font-size:15px;}
+  .btn-chart:hover{border-color:var(--accent);}
+  .market-bar{background:linear-gradient(135deg,#1e293b,#22304a);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;margin-bottom:20px;}
+  .mk-row{display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
+  .mk-row .label{color:var(--muted);font-size:12px;}
+  .mk-val{font-size:26px;font-weight:800;}
+  .mk-in{display:flex;gap:8px;margin-inline-start:auto;}
+  .mk-in input{width:170px;}
+  .alloc{display:flex;height:12px;border-radius:99px;overflow:hidden;background:var(--panel-2);margin:6px 0 8px;}
+  .alloc span{display:block;height:100%;}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-inline-end:5px;}
+  .pos-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;}
+  .pos-card{background:var(--panel-2);border:1px solid var(--border);border-radius:var(--radius);padding:14px;display:flex;flex-direction:column;gap:10px;}
+  .pc-head{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:17px;}
+  .pc-head .badge{font-size:11px;white-space:normal;text-align:center;}
+  .pc-main{display:flex;justify-content:space-between;align-items:center;gap:10px;}
+  .pc-main .price-input{width:110px;font-size:15px;font-weight:700;}
+  .spark{width:120px;height:38px;}
+  .spark-empty{font-size:11px;color:var(--muted);}
+  .pc-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;font-size:12px;}
+  .pc-stats span{display:block;color:var(--muted);font-size:11px;}
+  .pc-pl{font-size:16px;font-weight:800;}
+  .pc-pl small{font-weight:500;opacity:.85;}
+  .pc-actions{display:flex;gap:6px;flex-wrap:wrap;}
+  .pc-actions .btn-chart{flex:1;font-size:12px;color:var(--text);}
+  @media (max-width:600px){ body{padding:12px;} .mk-in{margin-inline-start:0;width:100%;} .mk-in input{flex:1;} }
 </style>
 </head>
 <body>
@@ -247,9 +286,12 @@
 
   <div class="summary-grid" id="summaryGrid"></div>
 
+  <div class="market-bar" id="marketBar"></div>
+
   <div class="tabs">
     <button class="tab-btn active" data-tab="add">➕ Add Trade</button>
-    <button class="tab-btn" data-tab="portfolio">💼 Portfolio</button>
+    <button class="tab-btn" data-tab="portfolio">💼 Open Positions</button>
+    <button class="tab-btn" data-tab="closed">✅ Closed Trades</button>
     <button class="tab-btn" data-tab="history">🧾 Transaction History</button>
     <button class="tab-btn" data-tab="backup">💾 Backup &amp; Export</button>
   </div>
@@ -309,34 +351,29 @@
   <!-- Portfolio -->
   <div class="panel" id="tab-portfolio">
     <div class="panel-header">
-      <p class="section-title">Current Portfolio</p>
+      <p class="section-title">Open Positions (still held)</p>
       <div class="filter-bar" id="portfolioFilterBar">
         <span class="note" style="margin:0;" id="portfolioFilterLabel"></span>
         <button class="btn btn-ghost" style="padding:6px 12px;font-size:12px;" onclick="clearPortfolioFilter()">Show All</button>
       </div>
     </div>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Stock</th>
-            <th>Current Qty</th>
-            <th>Avg. Buy Price</th>
-            <th>Current Price</th>
-            <th>Stop Loss (−5%)</th>
-            <th>Target 1 (+3%)</th>
-            <th>Target 2 (+6%)</th>
-            <th>Current Value</th>
-            <th>Unrealized P/L</th>
-            <th>Realized P/L</th>
-            <th>Recommendation</th>
-          </tr>
-        </thead>
-        <tbody id="portfolioBody"></tbody>
-      </table>
-    </div>
-    <p class="note">Enter your <strong>Current Price</strong> whenever you check the market — Unrealized P/L is always calculated from that latest value, and the timestamp under it shows when it was last updated. <strong>Stop Loss / Target 1 / Target 2</strong> are calculated automatically from your average buy price (−5% / +3% / +6%) and can't be edited manually. <strong>Recommendation</strong> flags "Sell — Stop Loss hit", "Sell — Target 1 reached" or "Sell — Target 2 reached" once the current price crosses one of those levels, otherwise it shows "Hold" — each alongside your overall gain/loss as a % of your average buy price (▲ for a gain, ▼ for a loss; Realized P/L is used instead once a stock is fully sold). Click the <strong>Unrealized P/L</strong> or <strong>Realized P/L</strong> label above to filter this table to just those stocks. Fully sold (closed) positions are highlighted green with their <strong>Current Price</strong> field locked, and their <strong>Recommendation</strong> badge uses a distinct color from "Hold ▲/▼" so closed positions stand out.</p>
+    <div class="tips" id="insights"></div>
+    <div class="pos-grid" id="posGrid"></div>
+    <p class="note">Only stocks you still hold appear here — profits from past sales live in <strong>Closed Trades</strong> and never affect these numbers. Type a new price on any card to log it to that stock's history. Verdicts (<strong>Accumulate / Hold / Watch / Reduce</strong>) combine the stock's own trend, how it performs versus <strong>EGX30</strong>, the overall market direction, concentration and price freshness (EGX trades Sunday–Thursday). These are rule-based guides, not financial advice.</p>
   </div>
+
+  <!-- Closed Trades -->
+  <div class="panel" id="tab-closed">
+    <p class="section-title">Closed Trades (realized sales)</p>
+    <div class="mini" id="closedStats" style="margin-bottom:14px;"></div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Date</th><th>Stock</th><th>Qty Sold</th><th>Avg Cost</th><th>Sell Price</th><th>Commission</th><th>Realized P/L</th><th>Return</th></tr></thead>
+      <tbody id="closedBody"></tbody>
+    </table></div>
+    <p class="note">Each sale is measured against your average cost at the moment you sold. These results are kept separate from the stocks you still hold.</p>
+  </div>
+
+  <div class="modal" id="stockModal" onclick="if(event.target===this)closeStock()"><div class="modal-box" id="stockBox"></div></div>
 
   <!-- History -->
   <div class="panel" id="tab-history">
@@ -404,7 +441,7 @@ const db = firebase.database();
 const dataRef = db.ref('stockTrackerData');
 
 function emptyData(){
-  return { transactions: [], currentPrices: {}, priceUpdatedAt: {}, wallet: 0 };
+  return { transactions: [], currentPrices: {}, priceUpdatedAt: {}, priceHistory: {}, marketHistory: [], wallet: 0 };
 }
 
 function setSyncStatus(text, color){
@@ -449,6 +486,8 @@ dataRef.on('value', (snapshot)=>{
     if(!data.transactions) data.transactions = [];
     if(!data.currentPrices) data.currentPrices = {};
     if(!data.priceUpdatedAt) data.priceUpdatedAt = {};
+    if(!data.priceHistory) data.priceHistory = {};
+    if(!data.marketHistory) data.marketHistory = [];
     if(data.wallet === undefined || data.wallet === null) data.wallet = 0;
   } else if(!dataLoaded){
     // nothing in the cloud yet — offer to bring over any old local data once
@@ -476,6 +515,7 @@ function switchTab(tabName){
   document.getElementById('tab-'+tabName).classList.add('active');
   if(tabName === 'portfolio') renderPortfolio();
   if(tabName === 'history') renderHistory();
+  if(tabName === 'closed') renderClosed();
 }
 document.querySelectorAll('.tab-btn').forEach(btn=>{
   btn.addEventListener('click', ()=> switchTab(btn.dataset.tab));
@@ -490,6 +530,7 @@ function clearHistoryFilter(){
   renderHistory();
 }
 function goToPortfolioFiltered(filterType){
+  if(filterType==='realized'){ switchTab('closed'); return; }
   portfolioFilter = filterType;
   switchTab('portfolio');
 }
@@ -598,7 +639,7 @@ function computeHoldings(){
   const holdings = {};
   sorted.forEach(tx=>{
     if(!holdings[tx.symbol]){
-      holdings[tx.symbol] = { qty:0, avgCost:0, realizedPL:0, totalBoughtQty:0 };
+      holdings[tx.symbol] = { qty:0, avgCost:0, realizedPL:0, totalBoughtQty:0, trades:[] };
     }
     const h = holdings[tx.symbol];
     const commission = tx.commission || 0;
@@ -613,7 +654,9 @@ function computeHoldings(){
       const sellQty = Math.min(tx.qty, h.qty);
       const commissionAllocated = tx.qty > 0 ? commission * (sellQty / tx.qty) : 0;
       const netProceeds = (sellQty * tx.price) - commissionAllocated;
-      h.realizedPL += netProceeds - (h.avgCost * sellQty);
+      const pl = netProceeds - (h.avgCost * sellQty);
+      h.realizedPL += pl;
+      h.trades.push({date:tx.date, symbol:tx.symbol, qty:sellQty, avg:h.avgCost, price:tx.price, commission:commissionAllocated, pl, pct: h.avgCost>0 ? pl/(h.avgCost*sellQty)*100 : 0});
       h.qty = h.qty - sellQty;
       if(h.qty <= 0.0000001){ h.qty = 0; }
     }
@@ -629,18 +672,6 @@ function getCurrentPrice(symbol){
     return sorted[0].price;
   }
   return 0;
-}
-
-// Auto-calculated levels based on average buy price (locked, not editable)
-function getLevels(avgCost){
-  if(!avgCost || avgCost <= 0){
-    return { stopLoss: null, target1: null, target2: null };
-  }
-  return {
-    stopLoss: avgCost * 0.95,
-    target1: avgCost * 1.03,
-    target2: avgCost * 1.06
-  };
 }
 
 function round(n){ return Math.round(n*100)/100; }
@@ -684,24 +715,17 @@ function getPLIndicator(h, cp){
   return {label:`${arrow} ${sign}${round(pct)}%`, cls};
 }
 
-// ---------- Recommendation: Stop Loss / Target hit status + P/L % ----------
-function getRecommendation(h, cp){
-  const levels = getLevels(h.avgCost);
+// ---------- Recommendation (market-aware verdict + P/L %) ----------
+function getRecommendation(sym, h, cp, tv){
   const pl = getPLIndicator(h, cp);
-
-  if(h.qty > 0){
-    if(levels.stopLoss !== null && cp <= levels.stopLoss){
-      return { label: `Sell — Stop Loss hit ${pl.label}`, cls: 'badge-down' };
-    }
-    if(levels.target2 !== null && cp >= levels.target2){
-      return { label: `Sell — Target 2 reached ${pl.label}`, cls: 'badge-up' };
-    }
-    if(levels.target1 !== null && cp >= levels.target1){
-      return { label: `Sell — Target 1 reached ${pl.label}`, cls: 'badge-up' };
-    }
-    return { label: `Hold ${pl.label}`, cls: pl.cls };
-  }
-  return { label: `Closed ${pl.label}`, cls: 'badge-closed' };
+  if(h.qty<=0) return { label:`Closed ${pl.label}`, cls:'badge-closed' };
+  const tips = getAdvice(sym, h, cp, tv===undefined ? totalMarketValue(computeHoldings()) : tv);
+  if(getHistory(sym).length<3) return { label:`Hold — add prices ${pl.label}`, cls:'badge-watch' };
+  const sc = tips.reduce((a,t)=>a+(t.s||0),0);
+  if(sc>=2.5) return { label:`Accumulate ${pl.label}`, cls:'badge-up' };
+  if(sc>=0.5) return { label:`Hold ${pl.label}`, cls:'badge-up' };
+  if(sc>-1.5) return { label:`Watch ${pl.label}`, cls:'badge-watch' };
+  return { label:`Reduce ${pl.label}`, cls:'badge-down' };
 }
 
 // ---------- Render: Summary ----------
@@ -726,8 +750,8 @@ function renderSummary(){
     {label:'Current Portfolio Value', value: fmtEGP(totalCurrentValue), cls:''},
   ];
   const afterWallet = [
-    {label:'Unrealized P/L', value: fmtEGP(totalUnrealized), cls: totalUnrealized>=0?'pos':'neg', filter:'unrealized', emphasis:true},
-    {label:'Realized P/L', value: fmtEGP(totalRealized), cls: totalRealized>=0?'pos':'neg', filter:'realized', emphasis:true},
+    {label:'Open P/L (Unrealized)', value: fmtEGP(totalUnrealized), cls: totalUnrealized>=0?'pos':'neg', filter:'unrealized', emphasis:true},
+    {label:'Closed P/L (Realized)', value: fmtEGP(totalRealized), cls: totalRealized>=0?'pos':'neg', filter:'realized', emphasis:true},
     {label:'Net P/L', value: fmtEGP(totalRealized + totalUnrealized), cls: (totalRealized + totalUnrealized)>=0?'pos':'neg'},
   ];
 
@@ -775,69 +799,224 @@ function updateWallet(el){
   renderSummary();
 }
 
-// ---------- Render: Portfolio ----------
-function renderPortfolio(){
-  const holdings = computeHoldings();
-  let symbols = Object.keys(holdings);
-
-  const filterBar = document.getElementById('portfolioFilterBar');
-  if(portfolioFilter === 'unrealized'){
-    symbols = symbols.filter(sym => holdings[sym].qty > 0);
-    filterBar.classList.add('show');
-    document.getElementById('portfolioFilterLabel').textContent = 'Showing only stocks with Unrealized P/L (currently held)';
-  } else if(portfolioFilter === 'realized'){
-    symbols = symbols.filter(sym => holdings[sym].realizedPL !== 0);
-    filterBar.classList.add('show');
-    document.getElementById('portfolioFilterLabel').textContent = 'Showing only stocks with Realized P/L (previously sold)';
-  } else {
-    filterBar.classList.remove('show');
-  }
-
-  const tbody = document.getElementById('portfolioBody');
-  if(symbols.length === 0){
-    tbody.innerHTML = `<tr><td colspan="11" class="empty">No matching stocks. Add a buy trade from the "Add Trade" tab.</td></tr>`;
-    return;
-  }
-  tbody.innerHTML = symbols.map(sym=>{
-    const h = holdings[sym];
-    const cp = getCurrentPrice(sym);
-    const currentValue = h.qty * cp;
-    const unrealized = h.qty * (cp - h.avgCost);
-    const levels = getLevels(h.avgCost);
-    const rec = getRecommendation(h, cp);
-    const updatedLabel = fmtTimestamp(data.priceUpdatedAt[sym]);
-    const isClosed = h.qty <= 0;
-    return `
-      <tr class="${isClosed ? 'row-closed' : ''}">
-        <td>${symbolLink(sym)}</td>
-        <td>${round(h.qty)}</td>
-        <td>${fmtEGP(h.avgCost)}</td>
-        <td>
-          <div class="price-cell">
-            <input type="number" class="price-input" step="any" value="${cp}" data-symbol="${sym}" ${isClosed ? 'disabled title="Closed position — price locked"' : 'onchange="updatePrice(this)"'}>
-            <span class="updated-at">${updatedLabel}</span>
-          </div>
-        </td>
-        <td>${levels.stopLoss !== null ? fmtEGP(levels.stopLoss) : '-'}</td>
-        <td>${levels.target1 !== null ? fmtEGP(levels.target1) : '-'}</td>
-        <td>${levels.target2 !== null ? fmtEGP(levels.target2) : '-'}</td>
-        <td>${fmtEGP(currentValue)}</td>
-        <td class="${unrealized>=0?'pos':'neg'}">${fmtEGP(unrealized)}</td>
-        <td class="${h.realizedPL>=0?'pos':'neg'}">${fmtEGP(h.realizedPL)}</td>
-        <td><span class="badge ${rec.cls}">${rec.label}</span></td>
-      </tr>
-    `;
-  }).join('');
+// ---------- Price history ----------
+let stockOpen = null;
+const hk = s => s.replace(/[.#$\/\[\]]/g,'_');
+function getHistory(sym){
+  const arr = data.priceHistory && data.priceHistory[hk(sym)];
+  return arr ? Object.values(arr).sort((a,b)=> new Date(a.t)-new Date(b.t)) : [];
 }
-
+function setHistory(sym, list){
+  if(!data.priceHistory) data.priceHistory = {};
+  list.sort((a,b)=> new Date(a.t)-new Date(b.t));
+  if(list.length){
+    data.priceHistory[hk(sym)] = list;
+    const last = list[list.length-1];
+    data.currentPrices[sym] = last.p;
+    data.priceUpdatedAt[sym] = last.t;
+  } else { delete data.priceHistory[hk(sym)]; }
+}
+function addPricePoint(sym, price, iso){
+  const list = getHistory(sym);
+  list.push({t:iso, p:price});
+  setHistory(sym, list);
+}
+function deletePricePoint(sym, idx){
+  if(!confirm('Delete this price entry?')) return;
+  const list = getHistory(sym); list.splice(idx,1);
+  setHistory(sym, list);
+  saveData(); renderAll();
+}
+function addPriceFromModal(e, sym){
+  e.preventDefault();
+  const price = parseFloat(document.getElementById('mPrice').value);
+  const d = document.getElementById('mDate').value;
+  if(isNaN(price) || price<0 || !d){ alert('Enter a valid price and date.'); return false; }
+  addPricePoint(sym, price, new Date(d).toISOString());
+  saveData(); renderAll();
+  return false;
+}
 function updatePrice(el){
   const sym = el.dataset.symbol;
   const val = parseFloat(el.value);
-  data.currentPrices[sym] = isNaN(val) ? 0 : val;
-  data.priceUpdatedAt[sym] = new Date().toISOString();
-  saveData();
-  renderSummary();
-  renderPortfolio();
+  if(isNaN(val) || val<0) return;
+  addPricePoint(sym, val, new Date().toISOString());
+  saveData(); renderSummary(); renderPortfolio();
+  if(stockOpen) renderStock();
+}
+function totalMarketValue(hs){
+  return Object.keys(hs).reduce((a,s)=> a + hs[s].qty*getCurrentPrice(s), 0);
+}
+
+// ---------- EGX30 market tracker ----------
+function getMarket(){
+  const a=data.marketHistory;
+  return a ? Object.values(a).sort((x,y)=>new Date(x.t)-new Date(y.t)) : [];
+}
+function addMarketPoint(){
+  const v=parseFloat(document.getElementById('egxInput').value);
+  if(isNaN(v)||v<=0){ alert('Enter the current EGX30 value.'); return; }
+  const l=getMarket(); l.push({t:new Date().toISOString(), v});
+  data.marketHistory=l; saveData(); renderAll();
+}
+function marketState(){
+  const m=getMarket();
+  if(m.length<2) return {regime:'unknown', last:m.length?m[0].v:0, ch:0, ret:0, t0:null};
+  const n=Math.min(5,m.length), w=m.slice(-n), last=m[m.length-1].v;
+  const sma=w.reduce((a,x)=>a+x.v,0)/n, ch=(last/m[m.length-2].v-1)*100, trend=(last/sma-1)*100;
+  return {regime: trend>0.3&&ch>=0?'bull':(trend<-0.3&&ch<=0?'bear':'side'), last, ch, ret:(last/w[0].v-1)*100, t0:new Date(w[0].t)};
+}
+function tradingDaysSince(iso){ // EGX trades Sunday–Thursday
+  let d=new Date(iso), now=new Date(), c=0;
+  d.setHours(0,0,0,0);
+  while(d<now && c<30){ d.setDate(d.getDate()+1); const w=d.getDay(); if(w!==5 && w!==6) c++; }
+  return c;
+}
+function renderMarket(){
+  const ms=marketState(), hs=computeHoldings(), tv=totalMarketValue(hs), wallet=data.wallet||0, nw=wallet+tv;
+  const meta={bull:['🟢 Uptrend','badge-up'],bear:['🔴 Downtrend','badge-down'],side:['🟡 Sideways','badge-watch'],unknown:['⚪ Add 2+ EGX30 entries','badge-watch']}[ms.regime];
+  const cash=nw>0?wallet/nw*100:0;
+  const target={bull:'10–20%',side:'20–30%',bear:'30%+'}[ms.regime];
+  const advice = ms.regime==='unknown' ? 'Log the EGX30 value each trading day (Sun–Thu) and the system will read the market trend for you.'
+    : `Cash is ${fmt(cash)}% of your net worth. ${ms.regime==='bear'?'Market is weak: be selective, avoid averaging down, keep a bigger cash buffer':ms.regime==='bull'?'Market is supportive: let winners run and add gradually on pullbacks':'Market is range-bound: favor stocks beating EGX30 and avoid chasing spikes'} (suggested cash: ${target}).`;
+  const syms=Object.keys(hs).filter(x=>hs[x].qty>0);
+  const segs=syms.map(x=>({n:x,v:hs[x].qty*getCurrentPrice(x),c:symbolColor(x)})).concat(wallet>0?[{n:'Cash',v:wallet,c:'#64748b'}]:[]);
+  const bar=nw>0?`<div class="alloc">${segs.map(g=>`<span style="width:${g.v/nw*100}%;background:${g.c}" title="${g.n} ${fmt(g.v/nw*100)}%"></span>`).join('')}</div><div class="mini">${segs.map(g=>`<span><i class="dot" style="background:${g.c}"></i>${g.n} <b>${fmt(g.v/nw*100)}%</b></span>`).join('')}</div>`:'';
+  document.getElementById('marketBar').innerHTML=`
+    <div class="mk-row"><div><div class="label">EGX30</div><div class="mk-val">${ms.last?fmt(ms.last):'—'} ${ms.regime!=='unknown'?`<span class="${ms.ch>=0?'pos':'neg'}" style="font-size:14px">${ms.ch>=0?'▲ +':'▼ '}${fmt(ms.ch)}%</span>`:''}</div></div>
+    <span class="badge ${meta[1]}">${meta[0]}</span>
+    <div class="mk-in"><input type="number" id="egxInput" step="any" placeholder="Today's EGX30 close"><button class="btn btn-primary" onclick="addMarketPoint()">Save</button></div></div>
+    <div class="note" style="margin:8px 0">${advice}</div>${bar}`;
+}
+
+// ---------- Advice engine (own price history + EGX30 context) ----------
+function getAdvice(sym, h, cp, totalValue){
+  const tips=[], add=(c,m,s,imp)=>tips.push({c,m,s:s||0,imp});
+  if(!h || h.qty<=0){ add('info','Position closed — see the Closed Trades tab for the result.'); return tips; }
+  const hist=getHistory(sym), px=hist.map(x=>x.p), ms=marketState(), pct=(cp/h.avgCost-1)*100;
+  if(px.length>=2){
+    const ch=(px[px.length-1]/px[px.length-2]-1)*100;
+    if(Math.abs(ch)>=10) add('warn',`Last entry moved ${ch>=0?'+':''}${fmt(ch)}% — unusually large for EGX; double-check the price.`,0,1);
+    else add(ch>=0?'good':'warn',`Last move: ${ch>=0?'+':''}${fmt(ch)}% vs the previous entry.`,ch>=0?0.5:-0.5);
+  }
+  if(px.length>=3){
+    const n=Math.min(5,px.length), sma=px.slice(-n).reduce((a,b)=>a+b,0)/n;
+    add(cp>=sma?'good':'warn',`${cp>=sma?'Above':'Below'} its ${n}-entry average (${fmt(sma)}) — short-term trend ${cp>=sma?'up':'down'}.`,cp>=sma?1:-1);
+    const peak=Math.max(...px), dd=(1-cp/peak)*100;
+    if(pct>2&&dd>=5) add('warn',`${fmt(dd)}% below its recorded peak (${fmt(peak)}) — consider securing part of the gain.`,-1,1);
+    if(pct<=-15&&cp<sma) add('bad',`Down ${fmt(-pct)}% with a weak trend — review why you bought; avoid averaging down blindly.`,-1,1);
+  } else add('info','Add at least 3 price entries to unlock trend signals.');
+  if(ms.regime==='bull') add('good','EGX30 is in an uptrend — supportive for holding and adding.',1);
+  else if(ms.regime==='bear') add('warn','EGX30 is weak — be selective and keep extra cash.',-1,1);
+  else if(ms.regime==='side') add('info','EGX30 is moving sideways — favor relative winners.');
+  if(ms.t0 && px.length>=2){
+    const prior=hist.filter(x=>new Date(x.t)<=ms.t0), base=(prior.length?prior[prior.length-1]:hist[0]).p, rs=(cp/base-1)*100-ms.ret;
+    add(rs>=0?'good':'warn',`${rs>=0?'Outperforming':'Lagging'} EGX30 by ${fmt(Math.abs(rs))} pts over the same window.`,rs>=0?1:-1);
+  }
+  if(pct>=15) add('good',`Up ${fmt(pct)}% on cost — a good moment to consider taking partial profit.`,-0.5,1);
+  if(totalValue>0){ const w=h.qty*cp/totalValue*100; if(w>30) add('warn',`${fmt(w)}% of your open portfolio is in this stock — high concentration.`,-1,1); }
+  const t=data.priceUpdatedAt[sym];
+  if(t && tradingDaysSince(t)>=3) add('warn',`Price not updated for ${tradingDaysSince(t)} trading days — update it for accurate advice.`,0,1);
+  return tips;
+}
+function renderInsights(hs, tv, syms){
+  const out=[], ms=marketState();
+  syms.forEach(s=>getAdvice(s,hs[s],getCurrentPrice(s),tv).filter(t=>t.imp).forEach(t=>
+    out.push(`<div class="tip ${t.c}"><strong style="color:${symbolColor(s)}">${s}</strong> — ${t.m}</div>`)));
+  document.getElementById('insights').innerHTML=out.join('')||(syms.length?'<div class="tip info">No alerts — your open positions look balanced.</div>':'');
+}
+
+// ---------- Chart (inline SVG, no libraries) ----------
+function sparkline(sym){
+  const px=getHistory(sym).slice(-20).map(x=>x.p);
+  if(px.length<2) return '<div class="spark-empty">no history yet</div>';
+  const mn=Math.min(...px), mx=Math.max(...px), r=mx-mn||1, up=px[px.length-1]>=px[0];
+  const pts=px.map((v,i)=>`${(i/(px.length-1)*118+1).toFixed(1)},${(34-(v-mn)/r*30).toFixed(1)}`).join(' ');
+  return `<svg viewBox="0 0 120 38" class="spark"><polyline fill="none" stroke="${up?'#22c55e':'#ef4444'}" stroke-width="2" points="${pts}"/></svg>`;
+}
+function drawChart(sym, h){
+  const pts=getHistory(sym).map(x=>({x:+new Date(x.t),y:x.p}));
+  const trades=data.transactions.filter(t=>t.symbol===sym).map(t=>({x:+new Date(t.date),y:t.price,type:t.type,qty:t.qty}));
+  const xs=pts.map(p=>p.x).concat(trades.map(t=>t.x));
+  if(!xs.length) return '<div class="empty">No price data yet.</div>';
+  const ys=pts.map(p=>p.y).concat(trades.map(t=>t.y)); if(h) ys.push(h.avgCost);
+  let x0=Math.min(...xs), x1=Math.max(...xs); if(x1===x0) x1=x0+864e5;
+  let y0=Math.min(...ys), y1=Math.max(...ys); const pad=(y1-y0||y1*0.02||1)*0.12; y0-=pad; y1+=pad;
+  const W=860,H=320,L=58,R=16,T=14,B=28;
+  const X=v=>L+(v-x0)/(x1-x0)*(W-L-R), Y=v=>T+(1-(v-y0)/(y1-y0))*(H-T-B);
+  let s=`<svg class="chart" viewBox="0 0 ${W} ${H}">`;
+  for(let i=0;i<=4;i++){ const v=y0+(y1-y0)*i/4; s+=`<line x1="${L}" x2="${W-R}" y1="${Y(v)}" y2="${Y(v)}" stroke="#33455e" stroke-width=".6"/><text x="${L-6}" y="${Y(v)+4}" fill="#93a4bd" font-size="11" text-anchor="end">${v.toFixed(2)}</text>`; }
+  for(let i=0;i<=3;i++){ const v=x0+(x1-x0)*i/3; s+=`<text x="${X(v)}" y="${H-8}" fill="#93a4bd" font-size="11" text-anchor="middle">${new Date(v).toLocaleDateString('en-GB',{day:'2-digit',month:'short'})}</text>`; }
+  if(h) s+=`<line x1="${L}" x2="${W-R}" y1="${Y(h.avgCost)}" y2="${Y(h.avgCost)}" stroke="#f59e0b" stroke-dasharray="5 4"/><text x="${W-R-2}" y="${Y(h.avgCost)-3}" fill="#f59e0b" font-size="10" text-anchor="end">Your avg cost ${h.avgCost.toFixed(2)}</text>`;
+  if(pts.length>1) s+=`<polyline fill="none" stroke="#3b82f6" stroke-width="2" points="${pts.map(p=>X(p.x)+','+Y(p.y)).join(' ')}"/>`;
+  pts.forEach(p=>{ s+=`<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="3.5" fill="#3b82f6"><title>${fmt(p.y)} EGP — ${new Date(p.x).toLocaleString('en-GB')}</title></circle>`; });
+  trades.forEach(t=>{ const cx=X(t.x), cy=Y(t.y), b=t.type==='buy';
+    s+=`<path d="M${cx} ${b?cy-8:cy+8}l6 ${b?12:-12}h-12z" fill="${b?'#22c55e':'#ef4444'}"><title>${b?'Buy':'Sell'} ${round(t.qty)} @ ${fmt(t.y)}</title></path>`; });
+  return s+'</svg><div class="mini">● price entries &nbsp; ▲ buy &nbsp; ▼ sell &nbsp; dashed = your average cost</div>';
+}
+
+// ---------- Stock detail modal ----------
+function openStock(sym){ stockOpen=sym; renderStock(); document.getElementById('stockModal').classList.add('show'); }
+function closeStock(){ stockOpen=null; document.getElementById('stockModal').classList.remove('show'); }
+document.addEventListener('keydown', e=>{ if(e.key==='Escape' && stockOpen) closeStock(); });
+function renderStock(){
+  const sym=stockOpen; if(!sym) return;
+  const hs=computeHoldings(), h=hs[sym]||{qty:0,avgCost:0,realizedPL:0};
+  const cp=getCurrentPrice(sym), tv=totalMarketValue(hs), hist=getHistory(sym), open=h.qty>0;
+  const un = open ? h.qty*(cp-h.avgCost) : 0;
+  const rows = hist.map((x,i)=>({x,i})).reverse().slice(0,40).map(({x,i})=>
+    `<tr><td>${new Date(x.t).toLocaleString('en-GB')}</td><td>${fmt(x.p)}</td><td><button class="btn-danger-icon" onclick="deletePricePoint('${sym}',${i})" title="Delete">🗑️</button></td></tr>`).join('');
+  const now = new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,16);
+  document.getElementById('stockBox').innerHTML = `
+    <div class="panel-header"><p class="section-title"><span style="color:${symbolColor(sym)}">${sym}</span> — price history</p><button class="btn btn-ghost" onclick="closeStock()">✕ Close</button></div>
+    <div class="mini"><span>Current price: <b>${fmtEGP(cp)}</b></span>${open?`<span>Qty held: <b>${round(h.qty)}</b></span><span>Avg cost: <b>${fmtEGP(h.avgCost)}</b></span><span>Unrealized: <b class="${un>=0?'pos':'neg'}">${fmtEGP(un)}</b></span>`:'<span>No open position</span>'}<span>Closed-sale profit (separate): <b class="${h.realizedPL>=0?'pos':'neg'}">${fmtEGP(h.realizedPL)}</b></span></div>
+    ${drawChart(sym, open?h:null)}
+    <div class="tips">${getAdvice(sym,h,cp,tv).map(t=>`<div class="tip ${t.c}">${t.m}</div>`).join('')}</div>
+    <form onsubmit="return addPriceFromModal(event,'${sym}')" style="margin-bottom:12px;">
+      <div><label>New price (EGP)</label><input type="number" id="mPrice" step="any" min="0" required></div>
+      <div><label>Date &amp; time</label><input type="datetime-local" id="mDate" value="${now}" required></div>
+      <div><button type="submit" class="btn btn-primary" style="width:100%;">Add price</button></div>
+    </form>
+    <div class="table-wrap"><table><thead><tr><th>Recorded at</th><th>Price (EGP)</th><th></th></tr></thead><tbody>${rows || '<tr><td colspan="3" class="empty">No prices recorded yet.</td></tr>'}</tbody></table></div>`;
+}
+
+// ---------- Render: Closed trades ----------
+function renderClosed(){
+  const hs=computeHoldings(); let tr=[];
+  Object.values(hs).forEach(h=> tr.push(...h.trades));
+  tr.sort((a,b)=> new Date(b.date)-new Date(a.date));
+  const tot=tr.reduce((a,t)=>a+t.pl,0), wins=tr.filter(t=>t.pl>0).length;
+  const best=tr.length?Math.max(...tr.map(t=>t.pl)):0, worst=tr.length?Math.min(...tr.map(t=>t.pl)):0;
+  document.getElementById('closedStats').innerHTML = `<span>Total realized: <b class="${tot>=0?'pos':'neg'}">${fmtEGP(tot)}</b></span><span>Sales: <b>${tr.length}</b></span><span>Win rate: <b>${tr.length?round(wins/tr.length*100):0}%</b></span><span>Best: <b class="pos">${fmtEGP(best)}</b></span><span>Worst: <b class="neg">${fmtEGP(worst)}</b></span>`;
+  document.getElementById('closedBody').innerHTML = tr.length ? tr.map(t=>`<tr>
+    <td>${t.date}</td><td>${symbolLink(t.symbol)}</td><td>${round(t.qty)}</td><td>${fmt(t.avg)}</td><td>${fmt(t.price)}</td><td>${fmt(t.commission)}</td>
+    <td class="${t.pl>=0?'pos':'neg'}">${fmtEGP(t.pl)}</td><td><span class="badge ${t.pl>=0?'badge-up':'badge-down'}">${t.pl>=0?'▲ +':'▼ '}${round(t.pct)}%</span></td></tr>`).join('')
+    : '<tr><td colspan="8" class="empty">No sales yet. Closed trades will appear here.</td></tr>';
+}
+
+// ---------- Render: Portfolio (open positions as cards) ----------
+function quickTrade(sym, type){
+  switchTab('add');
+  document.getElementById('symbol').value=sym; document.getElementById('type').value=type;
+  updateAvailableQtyInfo(); updateTotalPreview(); document.getElementById('qty').focus();
+}
+function renderPortfolio(){
+  const hs=computeHoldings(), tv=totalMarketValue(hs);
+  const syms=Object.keys(hs).filter(s=>hs[s].qty>0).sort((a,b)=>hs[b].qty*getCurrentPrice(b)-hs[a].qty*getCurrentPrice(a));
+  document.getElementById('portfolioFilterBar').classList.remove('show');
+  renderInsights(hs,tv,syms);
+  const grid=document.getElementById('posGrid');
+  if(!syms.length){ grid.innerHTML='<div class="empty" style="grid-column:1/-1">No open positions. Use “Add Trade” to record a buy.</div>'; return; }
+  grid.innerHTML=syms.map(sym=>{
+    const h=hs[sym], cp=getCurrentPrice(sym), rec=getRecommendation(sym,h,cp,tv), un=h.qty*(cp-h.avgCost), pc=(cp/h.avgCost-1)*100;
+    return `<div class="pos-card">
+      <div class="pc-head">${symbolLink(sym)}<span class="badge ${rec.cls}">${rec.label}</span></div>
+      <div class="pc-main"><div><input type="number" class="price-input" step="any" value="${cp}" data-symbol="${sym}" onchange="updatePrice(this)" title="Type a new price to log it"><span class="updated-at">${fmtTimestamp(data.priceUpdatedAt[sym])}</span></div>${sparkline(sym)}</div>
+      <div class="pc-stats"><div><span>Qty</span><b>${round(h.qty)}</b></div><div><span>Avg cost</span><b>${fmt(h.avgCost)}</b></div><div><span>Value</span><b>${fmt(h.qty*cp)}</b></div><div><span>Weight</span><b>${fmt(h.qty*cp/tv*100)}%</b></div></div>
+      <div class="pc-pl ${un>=0?'pos':'neg'}">${un>=0?'▲ +':'▼ '}${fmtEGP(un)} <small>(${pc>=0?'+':''}${fmt(pc)}%)</small></div>
+      <div class="pc-actions"><button class="btn-chart" onclick="openStock('${sym}')">📈 Chart &amp; advice</button><button class="btn-chart" onclick="quickTrade('${sym}','buy')">＋ Buy</button><button class="btn-chart" onclick="quickTrade('${sym}','sell')">－ Sell</button></div>
+    </div>`;
+  }).join('');
 }
 
 // ---------- Render: History ----------
@@ -933,6 +1112,8 @@ function importBackup(file){
       transactions: incoming.transactions || [],
       currentPrices: incoming.currentPrices || {},
       priceUpdatedAt: incoming.priceUpdatedAt || {},
+      priceHistory: incoming.priceHistory || {},
+      marketHistory: incoming.marketHistory || [],
       wallet: incoming.wallet || 0
     };
     saveData();
@@ -954,8 +1135,7 @@ function exportExcel(){
     const cp = getCurrentPrice(sym);
     const currentValue = h.qty * cp;
     const unrealized = h.qty * (cp - h.avgCost);
-    const levels = getLevels(h.avgCost);
-    const rec = getRecommendation(h, cp);
+    const rec = getRecommendation(sym, h, cp);
     totalInvested += h.qty * h.avgCost;
     totalCurrentValue += currentValue;
     totalRealized += h.realizedPL;
@@ -965,9 +1145,6 @@ function exportExcel(){
       'Current Qty': round(h.qty),
       'Avg. Buy Price': round(h.avgCost),
       'Current Price': cp,
-      'Stop Loss (-5%)': levels.stopLoss !== null ? round(levels.stopLoss) : '',
-      'Target 1 (+3%)': levels.target1 !== null ? round(levels.target1) : '',
-      'Target 2 (+6%)': levels.target2 !== null ? round(levels.target2) : '',
       'Current Value': round(currentValue),
       'Unrealized P/L': round(unrealized),
       'Realized P/L': round(h.realizedPL),
@@ -1004,10 +1181,16 @@ function exportExcel(){
     {'Metric':'Net P/L (EGP)', 'Value': round(totalUnrealized + totalRealized)}
   ];
 
+  const closedRows = [];
+  Object.values(holdings).forEach(h=>h.trades.forEach(t=>closedRows.push({'Date':t.date,'Stock':t.symbol,'Qty Sold':round(t.qty),'Avg Cost':round(t.avg),'Sell Price':round(t.price),'Commission':round(t.commission),'Realized P/L':round(t.pl),'Return %':round(t.pct)})));
+  const phRows = [];
+  symbols.forEach(sy=>getHistory(sy).forEach(x=>phRows.push({'Stock':sy,'Time':x.t,'Price':x.p})));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(portfolioRows), 'Portfolio');
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(historyRows), 'Transaction History');
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summaryRows), 'Summary');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(closedRows), 'Closed Trades');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(phRows), 'Price History');
 
   const stamp = new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
   XLSX.writeFile(wb, `stock-tracker-export-${stamp}.xlsx`);
@@ -1039,6 +1222,9 @@ function renderAll(){
   renderSummary();
   renderPortfolio();
   renderHistory();
+  renderClosed();
+  renderMarket();
+  if(stockOpen) renderStock();
 }
 renderAll();
 </script>
