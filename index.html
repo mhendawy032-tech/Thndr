@@ -73,6 +73,7 @@ td{padding:8px;border-bottom:1px solid rgba(255,255,255,.05);white-space:nowrap}
 .prow{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px}.prow>div{width:200px}.prow>.sp{margin-left:auto;width:auto}
 .psticky{position:sticky;top:var(--nh,56px);z-index:4;background:var(--p);border:1px solid var(--ln);border-radius:12px;padding:12px 16px;margin-bottom:12px;box-shadow:0 6px 12px rgba(0,0,0,.35)}.psticky .prow{margin:0}
 .pt th{position:sticky;top:calc(var(--nh,56px) + var(--ph,90px));background:var(--p);z-index:3}
+#m3{position:fixed;inset:0;background:rgba(5,8,15,.8);display:none;padding:10px;z-index:20}#m3.on{display:block}#mb3{background:var(--p);border:1px solid var(--ln);border-radius:14px;padding:12px;height:100%;display:flex;flex-direction:column}#tvc{flex:1;min-height:0}
 @media(max-width:600px){body{padding:10px}.k.hero{grid-column:span 1}nav button{font-size:13px;min-width:0}}
 </style>
 </head>
@@ -83,6 +84,7 @@ td{padding:8px;border-bottom:1px solid rgba(255,255,255,.05);white-space:nowrap}
 <button data-t="dash" class="on">📊 Portfolio</button>
 <button data-t="trade">➕ Trades</button>
 <button data-t="price">📅 Update Prices</button>
+<button data-t="sig">🎯 Signals</button>
 <button data-t="backup">💾 Backup</button>
 </nav>
 
@@ -125,14 +127,23 @@ td{padding:8px;border-bottom:1px solid rgba(255,255,255,.05);white-space:nowrap}
 <div><table class="pt"><thead><tr><th>Stock</th><th>Last price</th><th>Last update</th><th>New price</th><th>Change</th></tr></thead><tbody id="pb"></tbody></table></div>
 <p class="note">Leave a field empty to keep its price. Saving for the same date replaces that day's entry. At least 3 price updates per stock are needed for signals.</p>
 </div>
+<div class="box" style="margin-top:12px"><h2 style="margin:0 0 8px;font-size:15px">Import price history (CSV)</h2><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><select id="isym"></select><label class="btn" style="margin:0;color:var(--t)">📥 Choose CSV<input id="ifile" type="file" accept=".csv,text/csv" hidden onchange="importCSV(this.files[0])"></label></div>
+<p class="note">Works with investing.com exports (Arabic or English): date and close, plus open / high / low / volume if present. Days already logged are replaced. Pick EGX30 for the index file; pick a stock (add it to the watchlist first if it is new) for its own file.</p></div>
+</section>
+
+<section id="t-sig">
+<h2 style="margin-top:0">Signals <small>buy / hold / sell from your price history</small></h2>
+<div class="box" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input id="ws" placeholder="Add a stock to watch, e.g. COMI" style="max-width:260px" onkeydown="if(event.key==='Enter')addW()"><button class="btn pri" onclick="addW()">＋ Watch</button><span class="note" style="margin:0">Watched stocks appear in Update Prices so you can log their closes.</span></div>
+<div class="grid" id="sg" style="margin-top:12px"></div>
+<p class="note">Signals use RSI, 5/20-day averages, MACD and Bollinger bands on the closes you log (5+ days for a signal, 35+ for MACD). Buy zone / target / stop are derived from recent support, resistance and average daily range. This is a technical tool, not financial advice.</p>
 </section>
 
 <section id="t-backup">
-<h2 style="margin-top:0">Backup (JSON)</h2>
+<h2 style="margin-top:0">Backup</h2>
 <div class="box">
-<p style="display:flex;gap:10px;flex-wrap:wrap;margin:0"><button class="btn pri" onclick="exportJ()">⬇️ Download backup</button>
+<p style="display:flex;gap:10px;flex-wrap:wrap;margin:0"><button class="btn pri" onclick="exportX()">⬇️ Download backup (Excel)</button><button class="btn" onclick="exportJ()">⬇️ JSON (for restore)</button>
 <label class="btn" style="margin:0;color:var(--t)">⬆️ Restore backup<input type="file" accept="application/json" hidden onchange="importJ(this.files[0])"></label></p>
-<p class="note">Includes all trades, prices, cash and savings. Restoring replaces all current data after you confirm.</p>
+<p class="note">Excel sheets: Summary, Holdings, Trades, Realized, Prices, EGX30, Signals. Restore uses the JSON file. Includes all trades, prices, cash and savings. Restoring replaces all current data after you confirm.</p>
 </div>
 </section>
 </div>
@@ -147,6 +158,7 @@ td{padding:8px;border-bottom:1px solid rgba(255,255,255,.05);white-space:nowrap}
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><b id="m2t" style="font-size:18px"></b><button class="btn" onclick="closeM()">✕ Close</button></div>
 <div class="tw"><table><thead id="m2h"></thead><tbody id="m2b"></tbody><tfoot id="m2f"></tfoot></table></div>
 </div></div>
+<div id="m3"><div id="mb3"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px"><b id="m3t" style="font-size:18px"></b><span><button class="btn" onclick="setTV()">✏️ Symbol</button> <a class="btn" id="m3l" target="_blank" rel="noopener" style="text-decoration:none;color:var(--t)">↗ Open on TradingView</a> <button class="btn" onclick="closeM()">✕ Close</button></span></div><div id="tvc"></div></div></div>
 <div id="toast"></div>
 
 <script>
@@ -163,7 +175,7 @@ const col=s=>{let h=0;for(const c of s)h=c.charCodeAt(0)+((h<<5)-h);return COLS[
 const hk=s=>s.replace(/[.#$\/\[\]]/g,'_');
 function toast(m){const e=$('toast');e.textContent=m;e.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('show'),2400)}
 function sync(t,c){$('sync').textContent=t;$('sync').style.color=c}
-function norm(){data=data||{};data.transactions=data.transactions||[];data.currentPrices=data.currentPrices||{};data.priceUpdatedAt=data.priceUpdatedAt||{};data.priceHistory=data.priceHistory||{};data.marketHistory=data.marketHistory||[];data.wallet=data.wallet||0;data.savings=data.savings||0}
+function norm(){data=data||{};data.watchlist=data.watchlist||[];data.tvSymbols=data.tvSymbols||{};data.transactions=data.transactions||[];data.currentPrices=data.currentPrices||{};data.priceUpdatedAt=data.priceUpdatedAt||{};data.priceHistory=data.priceHistory||{};data.marketHistory=data.marketHistory||[];data.wallet=data.wallet||0;data.savings=data.savings||0}
 function save(){ref.set(data).catch(()=>{sync('⚠️ Save failed','var(--r)');alert('Could not save to the database. Check your connection.')})}
 ref.on('value',s=>{data=s.val()||{};norm();sync('☁️ Connected','var(--g)');renderAll()},()=>sync('⚠️ Offline','var(--r)'));
 
@@ -227,14 +239,14 @@ function openChart(s){
 function setCT(k,v){CS[k]=v;drawChart()}
 function drawChart(){
   const s=CS.s,H=holdings()[s],avg=H&&H.qty>0?H.avg:null,ty=CS.ty;
-  const m={};hist(s).forEach(a=>{m[day(a.t)]=a.p});
-  const all=Object.keys(m).sort().map(d=>({d,p:m[d]}));
+  const m={};hist(s).forEach(a=>{m[day(a.t)]=a});
+  const all=Object.keys(m).sort().map(d=>({d,p:m[d].p,o0:m[d].o,h:m[d].h,l:m[d].l}));
   const lim=new Date();lim.setDate(lim.getDate()-{'1m':31,'3m':92,'6m':183,all:99999}[CS.rg]);
   let i0=all.findIndex(a=>a.d>=day(lim));if(i0<0||all.length-i0<2)i0=Math.max(0,all.length-2);
   const P=all.slice(i0),pv0=i0>0?all[i0-1].p:null,n=P.length;
-  P.forEach((a,i)=>{const q=i?P[i-1].p:pv0;a.o=q==null?a.p:q;a.c=q==null?null:(a.p/q-1)*100});
+  P.forEach((a,i)=>{const q=i?P[i-1].p:pv0;a.o=a.o0!=null?a.o0:q==null?a.p:q;a.c=q==null?null:(a.p/q-1)*100});
   const W=760,Hh=380,L=60,R=14,T=14,B=34,st=(W-L-R)/n,X=i=>L+st*(i+.5);
-  const vals=ty==='pct'?P.map(a=>a.c||0).concat(0):P.map(a=>a.p).concat(avg?[avg]:[]);
+  const vals=ty==='pct'?P.map(a=>a.c||0).concat(0):P.flatMap(a=>ty==='candle'&&a.h!=null?[a.h,a.l,a.p]:[a.p]).concat(avg?[avg]:[]);
   let lo=Math.min(...vals),hi=Math.max(...vals);const pad=(hi-lo||Math.abs(hi)*.05||1)*.12;lo-=pad;hi+=pad;
   const Y=v=>T+(1-(v-lo)/(hi-lo))*(Hh-T-B),fy=v=>ty==='pct'?fmt(v,1)+'%':fmt(v);
   let g='<defs><linearGradient id="ag" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4d8dff" stop-opacity=".4"/><stop offset="1" stop-color="#4d8dff" stop-opacity="0"/></linearGradient></defs>';
@@ -244,19 +256,20 @@ function drawChart(){
   const pts=P.map((a,i)=>X(i)+','+Y(a.p)).join(' '),bw=Math.max(3,Math.min(20,st*.62));
   if(ty==='area')g+=`<path d="M${X(0)},${Hh-B} L${pts.replace(/ /g,' L')} L${X(n-1)},${Hh-B}Z" fill="url(#ag)"/>`;
   if(ty==='line'||ty==='area'){g+=`<polyline fill="none" stroke="#4d8dff" stroke-width="2.4" stroke-linejoin="round" points="${pts}"/>`;if(n<=45)g+=P.map((a,i)=>`<circle cx="${X(i)}" cy="${Y(a.p)}" r="3.2" fill="#4d8dff"/>`).join('')}
-  if(ty==='candle')g+=P.map((a,i)=>`<rect x="${X(i)-bw/2}" y="${Y(Math.max(a.o,a.p))}" width="${bw}" height="${Math.max(1.5,Math.abs(Y(a.o)-Y(a.p)))}" rx="1.5" fill="${a.p>=a.o?'#34c27a':'#ef5f5f'}"/>`).join('');
+  if(ty==='candle')g+=P.map((a,i)=>(a.h!=null?`<line x1="${X(i)}" x2="${X(i)}" y1="${Y(a.h)}" y2="${Y(a.l)}" stroke="${a.p>=a.o?'#34c27a':'#ef5f5f'}"/>`:'')+`<rect x="${X(i)-bw/2}" y="${Y(Math.max(a.o,a.p))}" width="${bw}" height="${Math.max(1.5,Math.abs(Y(a.o)-Y(a.p)))}" rx="1.5" fill="${a.p>=a.o?'#34c27a':'#ef5f5f'}"/>`).join('');
   if(ty==='pct')g+=`<line x1="${L}" x2="${W-R}" y1="${Y(0)}" y2="${Y(0)}" stroke="#8fa0bd"/>`+P.map((a,i)=>{const v=a.c||0,y=Y(v),z=Y(0);return `<rect x="${X(i)-bw/2}" y="${Math.min(y,z)}" width="${bw}" height="${Math.max(1.5,Math.abs(y-z))}" rx="1.5" fill="${v>=0?'#34c27a':'#ef5f5f'}"/>`}).join('');
   if(ty!=='pct'){
     if(avg)g+=`<line x1="${L}" x2="${W-R}" y1="${Y(avg)}" y2="${Y(avg)}" stroke="#e9ab3c" stroke-dasharray="6 5" stroke-width="1.6"/><text x="${W-R}" y="${Y(avg)-6}" fill="#e9ab3c" font-size="12" text-anchor="end">avg cost ${fmt(avg)}</text>`;
     data.transactions.filter(t=>t.symbol===s&&t.date>=P[0].d&&t.date<=P[n-1].d).forEach(t=>{const i=P.findIndex(a=>a.d>=t.date),x=X(i),y=Y(t.price);g+=t.type==='buy'?`<path d="M${x} ${y-3}l8 14h-16z" fill="#34c27a" stroke="#0d1320"/>`:`<path d="M${x} ${y+3}l8 -14h-16z" fill="#ef5f5f" stroke="#0d1320"/>`});
   }
+  if(ty!=='pct'){const A=all.map(a=>a.p),mp=[];P.forEach((a,i)=>{const k=i0+i+1;if(k>=20)mp.push(X(i)+','+Y(A.slice(k-20,k).reduce((x,y)=>x+y,0)/20))});if(mp.length>1)g+=`<polyline fill="none" stroke="#e879f9" stroke-width="1.8" points="${mp.join(' ')}"/><text x="${L+4}" y="${T+12}" fill="#e879f9" font-size="12">20-day avg</text>`}
   g+=`<line id="vl" y1="${T}" y2="${Hh-B}" stroke="#8fa0bd" stroke-dasharray="3 3" style="display:none"/>`;
   $('sv').innerHTML=g;
   const sgm=(k,o)=>`<div class="seg">${o.map(([v,l])=>`<button class="${CS[k]===v?'on':''}" onclick="setCT('${k}','${v}')">${l}</button>`).join('')}</div>`;
   $('tb').innerHTML=sgm('ty',[['line','Line'],['area','Area'],['candle','Candles'],['pct','Daily %']])+sgm('rg',[['1m','1M'],['3m','3M'],['6m','6M'],['all','All']]);
   $('mt').innerHTML=`<span style="color:${col(s)}">${s}</span> · daily closes`;
   const up='<span><b style="color:#34c27a">■</b> Up day</span><span><b style="color:#ef5f5f">■</b> Down day</span>',tr='<span><b style="color:#34c27a">▲</b> Buy</span><span><b style="color:#ef5f5f">▼</b> Sell</span>'+(avg?'<span><b style="color:#e9ab3c">╌</b> Avg cost</span>':'');
-  $('lg').innerHTML=ty==='candle'?up+'<span>Candle: previous close → close</span>'+tr:ty==='pct'?up+'<span>Bar: % change vs previous close</span>':'<span><b style="color:#4d8dff">━</b> Daily close</span>'+tr;
+  $('lg').innerHTML=ty==='candle'?up+'<span>'+(P.some(a=>a.h!=null)?'Candle: open → close, wick = high / low':'Candle: previous close → close')+'</span>'+tr:ty==='pct'?up+'<span>Bar: % change vs previous close</span>':'<span><b style="color:#4d8dff">━</b> Daily close</span>'+tr;
   const last=P[n-1].p,f=P[0].o,ps=P.filter(a=>a.c!=null),best=ps.length&&ps.reduce((a,b)=>b.c>a.c?b:a),wst=ps.length&&ps.reduce((a,b)=>b.c<a.c?b:a),hp=Math.max(...P.map(a=>a.p)),lp=Math.min(...P.map(a=>a.p));
   const C=(l,v,c='')=>`<div><i>${l}</i><span class="${c}">${v}</span></div>`;
   $('cs').innerHTML=C('Last close',fmt(last))+C('Change in range',sg((last/f-1)*100)+'%',cl(last-f))+C('Range high',fmt(hp))+C('Range low',fmt(lp))+C('From high','-'+fmt((1-last/hp)*100,1)+'%')+(best?C('Best day',sg(best.c)+'% · '+best.d.slice(5),'pos')+C('Worst day',sg(wst.c)+'% · '+wst.d.slice(5),'neg'):'')+(avg?C('Avg cost',fmt(avg))+C('Vs avg cost',sg((last/avg-1)*100)+'%',cl(last-avg)):'')+C('Days shown',n);
@@ -281,7 +294,7 @@ function showPL(k){
   $('m2f').innerHTML=rows.length?(re?`<tr><td colspan="5">Total (${rows.length} trades)</td>${tt}</tr>`:`<tr><td colspan="4">Total (${rows.length} stocks)</td><td>${fmt(tc)}</td><td>${fmt(tv)}</td>${tt}</tr>`):'';
   $('m2').classList.add('on');
 }
-function closeM(){$('mod').classList.remove('on');$('m2').classList.remove('on')}
+function closeM(){$('m3').classList.remove('on');$('tvc').innerHTML='';$('mod').classList.remove('on');$('m2').classList.remove('on')}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeM()});
 
 /* ---------- Portfolio view ---------- */
@@ -329,8 +342,8 @@ function renderDash(){
     <div style="display:flex;justify-content:space-between;align-items:center"><div class="big ${cl(u)}">${ar(u)} ${sg(u)} EGP <small>(${sg(a.pct)}%)</small></div>${spark(s)}</div>
     <div class="g4"><div><i>Price</i>${fmt(a.cp)}</div><div><i>Avg cost</i>${fmt(h.avg)}</div><div><i>Qty</i>${fq(h.qty)}</div><div><i>Value</i>${fmt(h.qty*a.cp,0)}</div>
     <div><i>Weight</i>${fmt(a.w,1)}%</div><div><i>Last move</i>${a.ch==null?'-':`<span class="${cl(a.ch)}">${sg(a.ch)}%</span>`}</div><div><i>Trend</i>${a.tr==null?'-':a.tr?'<span class="pos">↑ Up</span>':'<span class="neg">↓ Down</span>'}</div><div><i>From peak</i>${a.dd==null?'-':'-'+fmt(a.dd,1)+'%'}</div></div>
-    <ul class="why">${a.R.map(r=>`<li class="${r[0]}">${r[1]}</li>`).join('')}</ul>
-    <div class="acts"><button onclick="openChart('${s}')">📈 Chart</button><button onclick="quick('${s}','buy')">＋ Buy</button><button onclick="quick('${s}','sell')">－ Sell</button><button onclick="hf('${s}')">History</button></div></div>`}).join('')
+    ${techLine(s)}<ul class="why">${a.R.map(r=>`<li class="${r[0]}">${r[1]}</li>`).join('')}</ul>
+    <div class="acts"><button onclick="openChart('${s}')">📈 Chart</button><button onclick="openTV('${s}')">🔬 Advanced</button><button onclick="quick('${s}','buy')">＋ Buy</button><button onclick="quick('${s}','sell')">－ Sell</button><button onclick="hf('${s}')">History</button></div></div>`}).join('')
     :'<div class="empty" style="grid-column:1/-1">No holdings yet. Record your first buy in the Trades tab.</div>';
   RT=[];Object.values(H).forEach(h=>RT.push(...h.trades));RT.sort((a,b)=>new Date(b.d)-new Date(a.d));
 }
@@ -371,8 +384,9 @@ function delTx(id){if(!confirm('Delete this trade?'))return;data.transactions=da
 
 /* ---------- Update prices ---------- */
 function renderPrice(){
-  const H=holdings(),S=Object.keys(H).filter(s=>H[s].qty>0).sort(),today=day(new Date());
+  const H=holdings(),S=tracked(),today=day(new Date());
   if(!$('pd').value)$('pd').value=today;
+  {const cur=$('isym').value;$('isym').innerHTML=['EGX30',...S].map(x=>`<option>${x}</option>`).join('');if(cur)$('isym').value=cur}
   const m=mkt();$('pe').value='';$('pe').placeholder=m.length?'Last: '+fmt(m[m.length-1].v):'EGX30';
   $('pb').innerHTML=S.length?S.map(s=>{const c=px(s),t=data.priceUpdatedAt[s],f=t&&day(t)===today;
     return `<tr><td style="color:${col(s)}"><b>${s}</b></td><td>${fmt(c)}</td><td style="color:var(--m)">${t?new Date(t).toLocaleDateString('en-GB'):'Never'} ${f?'✅':'⚠️'}</td>
@@ -393,6 +407,120 @@ function savePrices(){
   save();renderAll();renderPrice();toast(`✅ Saved ${n} price(s)${m?' + EGX30':''}`);
 }
 
+
+/* ---------- technical signals ---------- */
+const sma=(a,k)=>a.length<k?null:a.slice(-k).reduce((x,y)=>x+y,0)/k;
+function ema(a,k){const m=2/(k+1);let e=a[0];return a.map((v,i)=>i?(e=v*m+e*(1-m)):v)}
+function rsi(a,k=14){if(a.length<k+1)return null;let g=0,l=0;for(let i=a.length-k;i<a.length;i++){const d=a[i]-a[i-1];d>0?g+=d:l-=d}return l===0?100:100-100/(1+g/l)}
+function tracked(){const H=holdings();return[...new Set([...Object.keys(H).filter(s=>H[s].qty>0),...data.watchlist])].sort()}
+function tech(s,held){
+  const hs=hist(s),p=hs.map(x=>x.p),n=p.length,cp=px(s),R=[];
+  if(n<5)return{n,sc:0,v:['Need data','watch'],R:[['y',`Log ${5-n} more price(s): 5+ needed for a signal, 20+ for full analysis`]]};
+  let sc=0;const s5=sma(p,5),s20=sma(p,20),r=rsi(p),L=p.slice(-20),H20=hs.slice(-20),sup=Math.min(...H20.map(x=>x.l??x.p)),res=Math.max(...H20.map(x=>x.h??x.p)),m=Math.min(14,n-1);
+  let d=0;for(let i=n-m;i<n;i++){const x=hs[i];d+=x.h!=null&&x.l!=null?Math.max(x.h-x.l,Math.abs(x.h-p[i-1]),Math.abs(x.l-p[i-1])):Math.abs(p[i]-p[i-1])}const atr=d/m;
+  if(s20){const up=cp>s20;sc+=up?1:-1;R.push([up?'g':'r',`Price ${up?'above':'below'} its 20-day average (${fmt(s20)}): ${up?'uptrend':'downtrend'}`]);const x=s5>s20;sc+=x?1:-1;R.push([x?'g':'r',`5-day average ${x?'above':'below'} 20-day average: momentum ${x?'positive':'negative'}`])}
+  else{const up=cp>=s5;sc+=up?1:-1;R.push([up?'g':'r',`Price ${up?'above':'below'} its 5-day average: short-term ${up?'up':'down'}`])}
+  if(r!=null){if(r<30){sc+=1.5;R.push(['g',`RSI ${fmt(r,0)}: oversold, a bounce is likely (buy zone)`])}else if(r>70){sc-=1.5;R.push(['r',`RSI ${fmt(r,0)}: overbought, avoid chasing and consider taking profit`])}else R.push(['y',`RSI ${fmt(r,0)}: neutral`])}
+  if(n>=35){const e1=ema(p,12),e2=ema(p,26),mc=e1.map((v,i)=>v-e2[i]),sg9=ema(mc,9),h=mc[n-1]-sg9[n-1],h0=mc[n-2]-sg9[n-2],u=h>0;sc+=u?1:-1;R.push([u?'g':'r',`MACD ${u?'above':'below'} its signal line, ${h>h0?'strengthening':'weakening'}`])}
+  if(n>=20){const sd=Math.sqrt(L.reduce((a,x)=>a+(x-s20)**2,0)/20);if(cp<s20-2*sd){sc+=1;R.push(['g','Below the lower Bollinger band: stretched down'])}else if(cp>s20+2*sd){sc-=1;R.push(['r','Above the upper Bollinger band: stretched up'])}}
+  if(n>=21&&hs.slice(-21).every(x=>x.v!=null)){const av=hs.slice(-21,-1).reduce((a,x)=>a+x.v,0)/20,up=p[n-1]>=p[n-2];if(av>0&&hs[n-1].v>1.5*av){sc+=up?.5:-.5;R.push([up?'g':'r',up?'Rise on heavy volume: move is confirmed':'Fall on heavy volume: selling pressure'])}}
+  const zl=sup,zh=sup+atr,tgt=cp>=res*.98?cp+2*atr:res,stp=cp<sup?cp-1.5*atr:sup-atr;
+  if(cp>=zl&&cp<=zh)R.push(['g','Price is inside the buy zone (near support)']);
+  if(cp>=tgt*.98)R.push(['y','Price is at the target: consider selling part of the position']);
+  if(cp<=stp)R.push(['r','Price is at or below the stop level: support broke']);
+  const v=sc>=2?['Buy','up']:sc<=-2?[held?'Sell':'Avoid','down']:[held?'Hold':'Wait','watch'];
+  return{n,sc,v,R,r,s5,s20,sup,res,zl,zh,tgt,stp};
+}
+function techLine(s){const t=tech(s,true);return `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="bdg ${t.v[1]}">🎯 ${t.v[0]}</span><small style="color:var(--m)">${t.zl!=null?`Buy zone ${fmt(t.zl)}–${fmt(t.zh)} · Target ${fmt(t.tgt)} · Stop ${fmt(t.stp)}`:'Log more prices for signals'}</small></div>`}
+function renderSig(){
+  const H=holdings(),S=tracked(),f=v=>v==null?'-':fmt(v);
+  $('sg').innerHTML=S.length?S.map(s=>{const h=H[s],held=h&&h.qty>0,t=tech(s,held);
+    return `<div class="card ${t.v[1]}"><div class="ch"><b style="color:${col(s)}">${s}</b><span class="bdg ${t.v[1]}">${t.v[0]}</span></div>
+    <div class="g4"><div><i>Price</i>${fmt(px(s))}</div><div><i>RSI</i>${t.r!=null?fmt(t.r,0):'-'}</div><div><i>20d avg</i>${f(t.s20)}</div><div><i>Status</i>${held?'Holding':'Watching'}</div>
+    <div><i>Buy zone</i>${t.zl!=null?fmt(t.zl)+'–'+fmt(t.zh):'-'}</div><div><i>Target</i>${f(t.tgt)}</div><div><i>Stop</i>${f(t.stp)}</div><div><i>Score</i>${t.sc}</div></div>
+    <ul class="why">${t.R.map(r=>`<li class="${r[0]}">${r[1]}</li>`).join('')}</ul>
+    <div class="acts"><button onclick="openChart('${s}')">📈 Chart</button><button onclick="openTV('${s}')">🔬 Advanced</button>${held?'':`<button onclick="delW('${s}')">✕ Remove</button>`}</div></div>`}).join(''):'<div class="empty" style="grid-column:1/-1">No stocks yet. Add one to watch above, or record a buy.</div>';
+}
+function addW(){const s=$('ws').value.trim().toUpperCase().replace(/[<>"'&\\]/g,'');if(!s)return;if(!data.watchlist.includes(s))data.watchlist.push(s);$('ws').value='';save();renderAll();toast('✅ Added '+s)}
+function delW(s){data.watchlist=data.watchlist.filter(x=>x!==s);save();renderAll()}
+
+/* ---------- TradingView advanced chart ---------- */
+let TVS=null;
+function openTV(s){
+  TVS=s;const sym=data.tvSymbols[s]||'EGX:'+s;
+  $('m3t').textContent=s+' · Advanced chart ('+sym+')';$('m3l').href='https://www.tradingview.com/chart/?symbol='+encodeURIComponent(sym);$('m3').classList.add('on');
+  const go=()=>{$('tvc').innerHTML='<div id="tvw" style="height:100%"></div>';new TradingView.widget({autosize:true,symbol:sym,interval:'D',timezone:'Africa/Cairo',theme:'dark',style:'1',locale:'en',allow_symbol_change:true,studies:['MASimple@tv-basicstudies','RSI@tv-basicstudies','MACD@tv-basicstudies'],container_id:'tvw'})};
+  if(window.TradingView)go();else{const e=document.createElement('script');e.src='https://s3.tradingview.com/tv.js';e.onload=go;e.onerror=()=>{$('tvc').innerHTML='<p class="empty">Could not load TradingView. Check your connection or use the link above.</p>'};document.head.appendChild(e)}
+}
+function setTV(){if(!TVS)return;const v=prompt('TradingView symbol for '+TVS+' (e.g. EGX:COMI):',data.tvSymbols[TVS]||'EGX:'+TVS);if(!v||!v.trim())return;data.tvSymbols[TVS]=v.trim().toUpperCase();save();openTV(TVS)}
+
+/* ---------- Excel backup (no libraries) ---------- */
+const CRC=(()=>{const t=[];for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return b=>{let c=-1;for(const x of b)c=t[(c^x)&255]^(c>>>8);return(c^-1)>>>0}})();
+function zip(files){
+  const E=new TextEncoder(),parts=[],cen=[];let off=0;
+  for(const[n,c]of files){const nb=E.encode(n),d=E.encode(c),crc=CRC(d);
+    const h=new DataView(new ArrayBuffer(30));h.setUint32(0,0x04034b50,true);h.setUint16(4,20,true);h.setUint16(6,0x800,true);h.setUint32(14,crc,true);h.setUint32(18,d.length,true);h.setUint32(22,d.length,true);h.setUint16(26,nb.length,true);
+    parts.push(new Uint8Array(h.buffer),nb,d);
+    const g=new DataView(new ArrayBuffer(46));g.setUint32(0,0x02014b50,true);g.setUint16(4,20,true);g.setUint16(6,20,true);g.setUint16(8,0x800,true);g.setUint32(16,crc,true);g.setUint32(20,d.length,true);g.setUint32(24,d.length,true);g.setUint16(28,nb.length,true);g.setUint32(42,off,true);
+    cen.push(new Uint8Array(g.buffer),nb);off+=30+nb.length+d.length}
+  const cs=cen.reduce((a,x)=>a+x.length,0),e=new DataView(new ArrayBuffer(22));e.setUint32(0,0x06054b50,true);e.setUint16(8,files.length,true);e.setUint16(10,files.length,true);e.setUint32(12,cs,true);e.setUint32(16,off,true);
+  return new Blob([...parts,...cen,new Uint8Array(e.buffer)],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+}
+const cn=i=>{let s='';i++;while(i){const m=(i-1)%26;s=String.fromCharCode(65+m)+s;i=(i-1-m)/26}return s};
+const XH='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+function sheetXml(r){
+  return XH+`<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols><col min="1" max="${r[0].length}" width="18" customWidth="1"/></cols><sheetData>${r.map((row,i)=>`<row r="${i+1}">${row.map((v,j)=>{const a=`r="${cn(j)}${i+1}"${i?'':' s="1"'}`;return v===''||v==null?'':typeof v==='number'&&isFinite(v)?`<c ${a}><v>${v}</v></c>`:`<c ${a} t="inlineStr"><is><t>${esc(v)}</t></is></c>`}).join('')}</row>`).join('')}</sheetData></worksheet>`;
+}
+function exportX(){
+  const H=holdings(),S=Object.keys(H).filter(s=>H[s].qty>0),r2=v=>v==null?'':Math.round(v*100)/100;
+  let val=0,inv=0,real=0;S.forEach(s=>{val+=H[s].qty*px(s);inv+=H[s].qty*H[s].avg});Object.values(H).forEach(h=>real+=h.real);
+  const all=[...new Set([...data.transactions.map(t=>t.symbol),...data.watchlist])].sort();
+  const sheets=[
+   ['Summary',[['Item','Value'],['Cash (EGP)',data.wallet],['Savings (EGP)',data.savings],['Stocks value (EGP)',r2(val)],['Net worth (EGP)',r2(data.wallet+data.savings+val)],['Invested capital (EGP)',r2(inv)],['Unrealized P/L (EGP)',r2(val-inv)],['Realized P/L (EGP)',r2(real)],['Exported at',new Date().toLocaleString('en-GB')]]],
+   ['Holdings',[['Stock','Qty','Avg cost','Price','Cost','Value','P/L','Return %','Weight %','Signal'],...S.map(s=>{const h=H[s],c=px(s);return[s,h.qty,r2(h.avg),r2(c),r2(h.qty*h.avg),r2(h.qty*c),r2(h.qty*(c-h.avg)),r2(h.avg?(c/h.avg-1)*100:0),r2(val?h.qty*c/val*100:0),tech(s,true).v[0]]})]],
+   ['Trades',[['Date','Stock','Type','Qty','Price','Commission','Net','Notes'],...data.transactions.slice().sort((a,b)=>new Date(a.date)-new Date(b.date)).map(t=>{const c=t.commission||0,g=t.qty*t.price;return[t.date,t.symbol,t.type==='buy'?'Buy':'Sell',t.qty,t.price,c,r2(t.type==='buy'?g+c:g-c),t.notes||'']})]],
+   ['Realized',[['Date','Stock','Qty','Avg cost','Sell price','P/L','Return %'],...Object.values(H).flatMap(h=>h.trades).sort((a,b)=>new Date(a.d)-new Date(b.d)).map(t=>[t.d,t.s,t.q,r2(t.avg),t.p,r2(t.pl),r2(t.pct)])]],
+   ['Prices',[['Stock','Date','Close','Open','High','Low','Volume'],...all.flatMap(s=>hist(s).map(x=>[s,day(x.t),x.p,x.o,x.h,x.l,x.v]))]],
+   ['EGX30',[['Date','Close','Open','High','Low','Volume'],...mkt().map(x=>[day(x.t),x.v,x.o,x.h,x.l,x.vol])]],
+   ['Signals',[['Stock','Status','Price','Signal','Score','RSI','5d avg','20d avg','Support','Resistance','Buy zone from','Buy zone to','Target','Stop'],...all.map(s=>{const h=H[s],held=h&&h.qty>0,t=tech(s,held);return[s,held?'Holding':'Watching',r2(px(s)),t.v[0],t.sc,r2(t.r),r2(t.s5),r2(t.s20),r2(t.sup),r2(t.res),r2(t.zl),r2(t.zh),r2(t.tgt),r2(t.stp)]})]]
+  ];
+  const ns='xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"',rn='http://schemas.openxmlformats.org/officeDocument/2006/relationships',N=sheets.length;
+  const files=[
+   ['[Content_Types].xml',XH+'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'+sheets.map((_,i)=>`<Override PartName="/xl/worksheets/sheet${i+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')+'</Types>'],
+   ['_rels/.rels',XH+`<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${rn}/officeDocument" Target="xl/workbook.xml"/></Relationships>`],
+   ['xl/workbook.xml',XH+`<workbook ${ns} xmlns:r="${rn}"><sheets>${sheets.map((x,i)=>`<sheet name="${x[0]}" sheetId="${i+1}" r:id="rId${i+1}"/>`).join('')}</sheets></workbook>`],
+   ['xl/_rels/workbook.xml.rels',XH+`<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((_,i)=>`<Relationship Id="rId${i+1}" Type="${rn}/worksheet" Target="worksheets/sheet${i+1}.xml"/>`).join('')}<Relationship Id="rId${N+1}" Type="${rn}/styles" Target="styles.xml"/></Relationships>`],
+   ['xl/styles.xml',XH+`<styleSheet ${ns}><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`],
+   ...sheets.map((x,i)=>['xl/worksheets/sheet'+(i+1)+'.xml',sheetXml(x[1])])
+  ];
+  const a=document.createElement('a');a.href=URL.createObjectURL(zip(files));a.download='stock-backup-'+day(new Date())+'.xlsx';document.body.appendChild(a);a.click();a.remove();toast('✅ Excel downloaded');
+}
+
+/* ---------- CSV import ---------- */
+const cells=l=>{const o=[];let c='',q=false;for(const ch of l){if(ch==='"')q=!q;else if(ch===','&&!q){o.push(c);c=''}else c+=ch}o.push(c);return o};
+const BID=/[\u200e\u200f\u202a-\u202e\ufeff"]/g;
+function pn(x){x=String(x||'').replace(BID,'').replace(/\s/g,'').replace(/%$/,'');let m=1;const u=x.slice(-1).toUpperCase();if(u&&'KMB'.includes(u)){m={K:1e3,M:1e6,B:1e9}[u];x=x.slice(0,-1)}const v=parseFloat(x.replace(/,/g,''));return isNaN(v)?null:v*m}
+function pdt(x){x=String(x||'').replace(BID,'').trim();let m=x.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);if(m)return m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');m=x.match(/^\d{4}-\d{2}-\d{2}/);if(m)return m[0];const d=new Date(x+' 12:00');return isNaN(d)?null:day(d)}
+function parseCSV(txt){
+  const L=txt.replace(/^\ufeff/,'').split(/\r?\n/).filter(x=>x.trim());if(L.length<2)return[];
+  const H=cells(L[0]).map(x=>x.replace(BID,'').trim()),ix=re=>H.findIndex(h=>re.test(h));
+  const c={d:ix(/تاريخ|date/i),p:ix(/اخر|آخر|اغلاق|إغلاق|close|price/i),o:ix(/فتح|open/i),h:ix(/عالي|high/i),l:ix(/منخفض|low/i),v:ix(/حجم|vol/i)};
+  if(c.d<0)c.d=0;if(c.p<0)c.p=1;
+  const R=[];L.slice(1).forEach(l=>{const a=cells(l),d=pdt(a[c.d]),p=pn(a[c.p]);if(!d||!(p>0)||d>day(new Date()))return;
+    const x={t:new Date(d+'T15:00:00').toISOString(),p};['o','h','l','v'].forEach(k=>{if(c[k]>=0){const v=pn(a[c[k]]);if(v!=null&&v>=0)x[k]=v}});R.push(x)});
+  return R;
+}
+function importCSV(f){
+  if(!f)return;const s=$('isym').value,r=new FileReader();
+  r.onload=e=>{const rows=parseCSV(e.target.result);
+    if(!rows.length){alert('No valid rows found. Expected columns: date and close (open, high, low, volume optional).');return}
+    const days=new Set(rows.map(x=>day(x.t)));
+    if(s==='EGX30')data.marketHistory=mkt().filter(x=>!days.has(day(x.t))).concat(rows.map(x=>JSON.parse(JSON.stringify({t:x.t,v:x.p,o:x.o,h:x.h,l:x.l,vol:x.v}))));
+    else setHist(s,hist(s).filter(x=>!days.has(day(x.t))).concat(rows));
+    save();renderAll();renderPrice();toast(`✅ Imported ${rows.length} days into ${s}`)};
+  r.readAsText(f,'utf-8');$('ifile').value='';
+}
+
 /* ---------- Backup ---------- */
 function exportJ(){
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify({app:'Stock Tracker',version:1,exportedAt:new Date().toISOString(),data},null,2)],{type:'application/json'}));
@@ -411,11 +539,11 @@ function importJ(f){
 function go(t){
   document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
   document.querySelectorAll('section').forEach(s=>s.classList.toggle('on',s.id==='t-'+t));
-  if(t==='price')renderPrice();setNH();
+  if(t==='price')renderPrice();if(t==='sig')renderSig();setNH();
   scrollTo(0,0);
 }
 document.querySelectorAll('#nav button').forEach(b=>b.onclick=()=>go(b.dataset.t));
-function renderAll(){renderDash();renderHist()}
+function renderAll(){renderDash();renderHist();renderSig()}
 $('dt').value=day(new Date());
 const setNH=()=>{const r=document.documentElement.style;r.setProperty('--nh',$('nav').offsetHeight+'px');r.setProperty('--ph',($('t-price').querySelector('.psticky').offsetHeight||0)+'px')};setNH();addEventListener('resize',setNH);
 </script>
