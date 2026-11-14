@@ -52,6 +52,7 @@ label{display:block;font-size:12.5px;color:var(--m);margin-bottom:4px}
 input,select{width:100%;padding:9px 10px;border-radius:9px;border:1px solid var(--ln);background:var(--p2);color:var(--t);font:inherit}
 input:focus,select:focus{outline:2px solid var(--a)}
 .note{color:var(--m);font-size:12.5px;margin:8px 0 0}
+#sym{text-transform:uppercase}
 .tw{overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:13.5px}
 th{text-align:left;color:var(--m);font-weight:600;padding:8px;border-bottom:1px solid var(--ln);white-space:nowrap}
@@ -74,7 +75,9 @@ td{padding:8px;border-bottom:1px solid rgba(255,255,255,.05);white-space:nowrap}
 .psticky{position:sticky;top:var(--nh,56px);z-index:4;background:var(--p);border:1px solid var(--ln);border-radius:12px;padding:12px 16px;margin-bottom:12px;box-shadow:0 6px 12px rgba(0,0,0,.35)}.psticky .prow{margin:0}
 .pt th{position:sticky;top:calc(var(--nh,56px) + var(--ph,90px));background:var(--p);z-index:3}
 #m3{position:fixed;inset:0;background:rgba(5,8,15,.8);display:none;padding:10px;z-index:20}#m3.on{display:block}#mb3{background:var(--p);border:1px solid var(--ln);border-radius:14px;padding:12px;height:100%;display:flex;flex-direction:column}#tvc{flex:1;min-height:0}
-@media(max-width:600px){body{padding:10px}.k.hero{grid-column:span 1}nav button{font-size:13px;min-width:0}}
+@media(max-width:600px){body{padding:10px}.k.hero{grid-column:span 1}nav button{font-size:13px;min-width:0}
+.psticky{position:static;box-shadow:none}.pt th{position:static}.prow>div{width:calc(50% - 6px)}.prow>.sp{width:100%;margin-left:0}.prow>.sp .btn{width:100%}}
+#pb input{scroll-margin-top:90px;scroll-margin-bottom:40vh}
 </style>
 </head>
 <body>
@@ -101,9 +104,10 @@ td{padding:8px;border-bottom:1px solid rgba(255,255,255,.05);white-space:nowrap}
 <form id="f">
 <div><label>Stock symbol</label><input id="sym" list="syms" autocomplete="off" placeholder="e.g. COMI" required></div>
 <div><label>Type</label><select id="typ"><option value="buy">Buy</option><option value="sell">Sell</option></select></div>
-<div><label>Quantity</label><input id="qty" type="number" min="0" step="any" required></div>
-<div><label>Price per share (EGP)</label><input id="prc" type="number" min="0" step="any" required></div>
-<div><label>Commission (EGP)</label><input id="com" type="number" min="0" step="any" value="0"></div>
+<div><label>Quantity</label><input id="qty" type="text" inputmode="decimal" autocomplete="off" required></div>
+<div><label>Price per share (EGP)</label><input id="prc" type="text" inputmode="decimal" autocomplete="off" required></div>
+<div><label>Commission (EGP)</label><input id="com" type="text" inputmode="decimal" autocomplete="off" value="0"></div>
+<div><label>Net (EGP) — auto-calculates commission</label><input id="net" type="text" inputmode="decimal" autocomplete="off" placeholder="e.g. 5000+12"></div>
 <div><label>Date</label><input id="dt" type="date" required></div>
 <div><label>Note (optional)</label><input id="nts"></div>
 <div><button class="btn pri" style="width:100%">Save trade</button></div>
@@ -125,6 +129,7 @@ td{padding:8px;border-bottom:1px solid rgba(255,255,255,.05);white-space:nowrap}
 </div></div>
 <div class="box">
 <div><table class="pt"><thead><tr><th>Stock</th><th>Last price</th><th>Last update</th><th>New price</th><th>Change</th></tr></thead><tbody id="pb"></tbody></table></div>
+<button class="btn pri" style="width:100%;margin-top:12px" onclick="savePrices()">💾 Save prices</button>
 <p class="note">Leave a field empty to keep its price. Saving for the same date replaces that day's entry. At least 3 price updates per stock are needed for signals.</p>
 </div>
 <div class="box" style="margin-top:12px"><h2 style="margin:0 0 8px;font-size:15px">Import price history (CSV)</h2><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><select id="isym"></select><label class="btn" style="margin:0;color:var(--t)">📥 Choose CSV<input id="ifile" type="file" accept=".csv,text/csv" hidden onchange="importCSV(this.files[0])"></label></div>
@@ -365,22 +370,79 @@ function hint(){
   $('hint').textContent=!s?'':$('typ').value==='sell'?(q>0?`Available to sell of ${s}: ${fq(q)} shares`:`You don't own ${s}: a sell can't be saved`):(q>0?`You currently hold ${fq(q)} shares of ${s}`:`${s} is a new position`);
 }
 ['sym','typ'].forEach(i=>$(i).addEventListener('input',hint));
+/* Sell: fill quantity with the shares you own (only replaces an empty or auto-filled quantity) */
+let autoQ=null;
+function autoQty(){
+  const s=$('sym').value.trim().toUpperCase(),h=holdings()[s],q=h?h.qty:0,el=$('qty');
+  if($('typ').value==='sell'&&q>0){if(el.value===''||el.value===autoQ){el.value=String(q);autoQ=String(q)}}
+  else if(autoQ!==null&&el.value===autoQ){el.value='';autoQ=null}
+  if($('net').value.trim()!=='')netToComm();
+}
+['sym','typ'].forEach(i=>$(i).addEventListener('input',autoQty));
+/* Stock symbol is always capital letters */
+$('sym').addEventListener('input',e=>{const el=e.target,p=el.selectionStart;el.value=el.value.toUpperCase();try{el.setSelectionRange(p,p)}catch(_){}});
+/* Net <-> Commission: buy: net = qty*price + commission ; sell: net = qty*price - commission */
+const r2=v=>Math.round(v*100)/100;
+/* evaluates a number or a simple expression like 5000+12 or 100*50.25 */
+function ev(v){
+  const s=String(v==null?'':v).replace(/[,\s]/g,'');
+  if(!s||!/^[\d.+\-*\/()]+$/.test(s))return NaN;
+  try{const r=Function('"use strict";return ('+s+')')();return isFinite(r)?r:NaN}catch(_){return NaN}
+}
+['qty','prc','com','net'].forEach(i=>{
+  const el=$(i);
+  el.addEventListener('blur',()=>{const r=ev(el.value);if(!isNaN(r)&&/[+\-*\/()]/.test(el.value.replace(/^-/,'')))el.value=r2(r*1e6)/1e6});
+  el.addEventListener('keydown',e=>{if(e.key==='Enter'){const r=ev(el.value);if(!isNaN(r))el.value=r2(r*1e6)/1e6}});
+});
+/* Enter moves to the next field; from the Net field it saves the trade */
+$('f').addEventListener('keydown',e=>{
+  if(e.key!=='Enter'||e.target.id==='net'||e.target.tagName==='BUTTON')return;
+  e.preventDefault();
+  const F=[...$('f').querySelectorAll('input,select')],i=F.indexOf(e.target),nx=i>=0&&i<F.length-1?F[i+1]:$('net');
+  nx.focus();if(nx.select&&nx.tagName==='INPUT')nx.select();
+});
+function netToComm(){
+  const q=ev($('qty').value),p=ev($('prc').value),n=ev($('net').value);
+  if($('net').value.trim()===''||isNaN(n)||!(q>0)||isNaN(p))return;
+  const g=q*p,c=$('typ').value==='buy'?n-g:g-n;
+  $('com').value=c>=0?r2(c):0;
+  $('com').style.outline=c<0?'2px solid var(--r)':'';
+  $('com').title=c<0?'Net is inconsistent with quantity × price for this type':'';
+}
+function commToNet(){
+  const q=ev($('qty').value),p=ev($('prc').value),c=ev($('com').value)||0;
+  if(!(q>0)||isNaN(p))return;
+  $('net').value=r2($('typ').value==='buy'?q*p+c:q*p-c);
+  $('com').style.outline='';
+}
+$('net').addEventListener('input',netToComm);
+$('com').addEventListener('input',commToNet);
+['qty','prc','typ'].forEach(i=>$(i).addEventListener('input',()=>{if($('net').value!=='')netToComm()}));
 $('f').addEventListener('submit',e=>{
   e.preventDefault();
-  const s=$('sym').value.trim().toUpperCase().replace(/[<>"'&\\]/g,''),type=$('typ').value,qty=parseFloat($('qty').value),price=parseFloat($('prc').value),com=parseFloat($('com').value)||0,date=$('dt').value;
+  const s=$('sym').value.trim().toUpperCase().replace(/[<>"'&\\]/g,''),type=$('typ').value,qty=ev($('qty').value),price=ev($('prc').value),com=ev($('com').value)||0,date=$('dt').value;
   if(!s||!(qty>0)||isNaN(price)||price<0||com<0||!date){alert('Please fill the required fields with valid values.');return}
   if(type==='sell'){const h=holdings()[s],q=h?h.qty:0;if(qty>q+1e-7){alert(`Trade not saved: you only have ${fq(q)} of ${s}.`);return}}
-  data.transactions.push({id:Date.now()+Math.random().toString(16).slice(2),symbol:s,type,qty,price,commission:com,date,notes:$('nts').value.trim()});
-  save();e.target.reset();$('dt').value=day(new Date());$('com').value=0;renderAll();toast('✅ Trade saved');
+  const nt={id:Date.now()+Math.random().toString(16).slice(2),symbol:s,type,qty,price,commission:com,date,notes:$('nts').value.trim()};
+  data.transactions.push(nt);data.wallet=r2((data.wallet||0)+cashEff(nt));
+  save();e.target.reset();$('dt').value=day(new Date());$('com').value=0;$('net').value='';$('com').style.outline='';renderAll();toast('✅ Trade saved');
 });
-function quick(s,t){go('trade');$('sym').value=s;$('typ').value=t;hint();$('qty').focus()}
+function quick(s,t){go('trade');$('sym').value=s;$('typ').value=t;hint();autoQty();$('qty').focus();$('qty').select()}
 function editComm(id){
   const t=data.transactions.find(x=>x.id===id);if(!t)return;
   const v=prompt(`Commission for ${t.symbol} (${t.date}) in EGP:`,t.commission||0);if(v===null)return;
   const c=parseFloat(v);if(isNaN(c)||c<0){alert('Enter a valid number');return}
-  t.commission=c;save();renderAll();toast('✅ Commission saved');
+  data.wallet=r2((data.wallet||0)-cashEff(t));t.commission=c;data.wallet=r2(data.wallet+cashEff(t));
+  save();renderAll();toast('✅ Commission saved');
 }
-function delTx(id){if(!confirm('Delete this trade?'))return;data.transactions=data.transactions.filter(t=>t.id!==id);save();renderAll()}
+/* cash effect of a trade: buy takes out qty*price+commission, sell brings in qty*price-commission */
+function cashEff(t){const g=t.qty*t.price,c=t.commission||0;return t.type==='buy'?-(g+c):g-c}
+function delTx(id){
+  const t=data.transactions.find(x=>x.id===id);if(!t)return;
+  if(!confirm('Delete this trade? Its effect on your cash will be reversed.'))return;
+  data.wallet=r2((data.wallet||0)-cashEff(t));
+  data.transactions=data.transactions.filter(x=>x.id!==id);save();renderAll();
+}
 
 /* ---------- Update prices ---------- */
 function renderPrice(){
