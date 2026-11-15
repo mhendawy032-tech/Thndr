@@ -70,6 +70,10 @@ td{padding:8px;border-bottom:1px solid rgba(255,255,255,.05);white-space:nowrap}
 .tb{display:flex;flex-wrap:wrap;gap:8px 16px;margin-bottom:10px}.seg{display:flex;border:1px solid var(--ln);border-radius:9px;overflow:hidden}.seg button{background:var(--p2);color:var(--m);border:0;padding:6px 13px;font:inherit;font-size:13px;cursor:pointer}.seg button.on{background:var(--a);color:#fff;font-weight:700}
 #m2{position:fixed;inset:0;background:rgba(5,8,15,.75);display:none;align-items:center;justify-content:center;padding:14px;z-index:20}#m2.on{display:flex}
 #mb2{background:var(--p);border:1px solid var(--ln);border-radius:14px;padding:16px;width:100%;max-width:820px;max-height:92vh;overflow:auto}
+#m4{position:fixed;inset:0;background:rgba(5,8,15,.75);display:none;align-items:center;justify-content:center;padding:14px;z-index:25}#m4.on{display:flex}
+#mb4{background:var(--p);border:1px solid var(--ln);border-radius:14px;padding:16px;width:100%;max-width:340px;max-height:96vh;overflow:auto}
+#cx{font-size:22px;font-weight:700;text-align:right;direction:ltr}
+.kp{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}.kp button{padding:13px 0;font-size:18px;font-weight:600;border-radius:10px;border:1px solid var(--ln);background:var(--p2);color:var(--t);cursor:pointer}.kp button.op{color:var(--a)}.kp button:active{background:var(--ln)}
 .clk{cursor:pointer}.clk:hover{border-color:var(--a)}tfoot td{font-weight:700;border-top:2px solid var(--ln);border-bottom:0}
 .prow{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px}.prow>div{width:200px}.prow>.sp{margin-left:auto;width:auto}
 .psticky{position:sticky;top:var(--nh,56px);z-index:4;background:var(--p);border:1px solid var(--ln);border-radius:12px;padding:12px 16px;margin-bottom:12px;box-shadow:0 6px 12px rgba(0,0,0,.35)}.psticky .prow{margin:0}
@@ -162,6 +166,14 @@ td{padding:8px;border-bottom:1px solid rgba(255,255,255,.05);white-space:nowrap}
 <div id="m2" onclick="if(event.target===this)closeM()"><div id="mb2">
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><b id="m2t" style="font-size:18px"></b><button class="btn" onclick="closeM()">✕ Close</button></div>
 <div class="tw"><table><thead id="m2h"></thead><tbody id="m2b"></tbody><tfoot id="m2f"></tfoot></table></div>
+</div></div>
+<div id="m4" onclick="if(event.target===this)closeM()"><div id="mb4">
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b id="m4t" style="font-size:16px"></b><button class="btn" onclick="closeM()">✕</button></div>
+<p class="note" id="m4i" style="margin:0 0 8px"></p>
+<input id="cx" type="text" inputmode="none" autocomplete="off" placeholder="0" oninput="calcUpd()" onkeydown="if(event.key==='Enter'){event.preventDefault();calcEnter()}">
+<p id="m4r" style="margin:8px 0 0;min-height:22px;font-size:14px"></p>
+<div class="kp" id="kp"></div>
+<button class="btn pri" id="m4a" style="width:100%;margin-top:12px" onclick="applyCalc()">✔ Set as Net → update Commission</button>
 </div></div>
 <div id="m3"><div id="mb3"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px"><b id="m3t" style="font-size:18px"></b><span><button class="btn" onclick="setTV()">✏️ Symbol</button> <a class="btn" id="m3l" target="_blank" rel="noopener" style="text-decoration:none;color:var(--t)">↗ Open on TradingView</a> <button class="btn" onclick="closeM()">✕ Close</button></span></div><div id="tvc"></div></div></div>
 <div id="toast"></div>
@@ -299,7 +311,7 @@ function showPL(k){
   $('m2f').innerHTML=rows.length?(re?`<tr><td colspan="5">Total (${rows.length} trades)</td>${tt}</tr>`:`<tr><td colspan="4">Total (${rows.length} stocks)</td><td>${fmt(tc)}</td><td>${fmt(tv)}</td>${tt}</tr>`):'';
   $('m2').classList.add('on');
 }
-function closeM(){$('m3').classList.remove('on');$('tvc').innerHTML='';$('mod').classList.remove('on');$('m2').classList.remove('on')}
+function closeM(){$('m4').classList.remove('on');$('m3').classList.remove('on');$('tvc').innerHTML='';$('mod').classList.remove('on');$('m2').classList.remove('on')}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeM()});
 
 /* ---------- Portfolio view ---------- */
@@ -360,7 +372,7 @@ function renderHist(){
   $('hf').innerHTML=filt?`<span style="color:${col(filt)}">${filt}</span> <button class="lnk" onclick="hf(null)">Show all</button>`:'';
   $('hist').innerHTML=T.length?T.map(t=>{const c=t.commission||0,g=t.qty*t.price,n=t.type==='buy'?g+c:g-c;
     return `<tr><td>${t.date}</td><td><button class="lnk" style="color:${col(t.symbol)}" onclick="hf('${t.symbol}')">${t.symbol}</button></td><td><span class="bdg ${t.type==='buy'?'up':'down'}">${t.type==='buy'?'Buy':'Sell'}</span></td><td>${fq(t.qty)}</td><td>${fmt(t.price)}</td>
-    <td><button class="lnk" style="${c>0?'':'color:var(--y)'}" onclick="editComm('${t.id}')">${fmt(c)} ✏️</button></td><td>${fmt(n)}</td><td>${esc(t.notes)||'-'}</td><td><button class="lnk" onclick="delTx('${t.id}')" title="Delete">🗑️</button></td></tr>`}).join(''):'<tr><td colspan="9" class="empty">No trades.</td></tr>';
+    <td><button class="lnk" style="${c>0?'':'color:var(--y)'}" onclick="editComm('${t.id}')">${fmt(c)} ✏️</button></td><td><button class="lnk" onclick="openCalc('${t.id}')" title="Open calculator">${fmt(n)} 🧮</button></td><td>${esc(t.notes)||'-'}</td><td><button class="lnk" onclick="delTx('${t.id}')" title="Delete">🗑️</button></td></tr>`}).join(''):'<tr><td colspan="9" class="empty">No trades.</td></tr>';
   $('syms').innerHTML=[...new Set(data.transactions.map(t=>t.symbol))].sort().map(s=>`<option value="${s}">`).join('');
   hint();
 }
@@ -437,6 +449,39 @@ function editComm(id){
 }
 /* cash effect of a trade: buy takes out qty*price+commission, sell brings in qty*price-commission */
 function cashEff(t){const g=t.qty*t.price,c=t.commission||0;return t.type==='buy'?-(g+c):g-c}
+/* Net calculator: the final amount becomes the Net, and the difference is saved as Commission */
+let CT=null;
+const KEYS=[['C','C'],['(','('],[')',')'],['⌫','B'],['7','7'],['8','8'],['9','9'],['÷','/'],['4','4'],['5','5'],['6','6'],['×','*'],['1','1'],['2','2'],['3','3'],['−','-'],['0','0'],['.','.'],['=','='],['+','+']];
+function openCalc(id){
+  const t=data.transactions.find(x=>x.id===id);if(!t)return;CT=id;
+  const g=t.qty*t.price,c=t.commission||0,n=t.type==='buy'?g+c:g-c;
+  $('m4t').textContent=`${t.symbol} · ${t.type==='buy'?'Buy':'Sell'} · ${t.date}`;
+  $('m4i').innerHTML=`Quantity × Price = <b>${fmt(g)}</b><br>Current Net = <b>${fmt(n)}</b> (Commission ${fmt(c)})`;
+  if(!$('kp').children.length)$('kp').innerHTML=KEYS.map(k=>`<button type="button" class="${'÷×−+='.includes(k[0])?'op':''}" onclick="calcKey('${k[1]}')">${k[0]}</button>`).join('');
+  $('cx').value=String(r2(n));calcUpd();$('m4').classList.add('on');
+}
+function calcKey(k){
+  const el=$('cx');
+  if(k==='C')el.value='';else if(k==='B')el.value=el.value.slice(0,-1);else if(k==='=')calcEval();else el.value+=k;
+  calcUpd();
+}
+function calcEval(){const el=$('cx'),r=ev(el.value);if(!isNaN(r))el.value=String(r2(r))}
+function calcEnter(){const el=$('cx');if(/[+\-*\/()]/.test(el.value.replace(/^-/,'')))calcEval(),calcUpd();else applyCalc()}
+function calcComm(){
+  const t=data.transactions.find(x=>x.id===CT),v=ev($('cx').value);if(!t||isNaN(v))return null;
+  const g=t.qty*t.price;return{t,v,c:r2(t.type==='buy'?v-g:g-v)};
+}
+function calcUpd(){
+  const r=calcComm(),m=$('m4r'),b=$('m4a');
+  if(!r){m.innerHTML='';b.disabled=true;return}
+  const bad=r.c<0;b.disabled=bad;
+  m.innerHTML=bad?`<span class="neg">Commission would be ${fmt(r.c)}: this Net doesn't fit Quantity × Price</span>`:`Net <b>${fmt(r.v)}</b> → Commission <b class="pos">${fmt(r.c)}</b>`;
+}
+function applyCalc(){
+  const r=calcComm();if(!r||r.c<0)return;
+  data.wallet=r2((data.wallet||0)-cashEff(r.t));r.t.commission=r.c;data.wallet=r2(data.wallet+cashEff(r.t));
+  save();closeM();renderAll();toast('✅ Commission saved: '+fmt(r.c));
+}
 function delTx(id){
   const t=data.transactions.find(x=>x.id===id);if(!t)return;
   if(!confirm('Delete this trade? Its effect on your cash will be reversed.'))return;
