@@ -436,7 +436,7 @@ $('f').addEventListener('submit',e=>{
   if(!s||!(qty>0)||isNaN(price)||price<0||com<0||!date){alert('Please fill the required fields with valid values.');return}
   if(type==='sell'){const h=holdings()[s],q=h?h.qty:0;if(qty>q+1e-7){alert(`Trade not saved: you only have ${fq(q)} of ${s}.`);return}}
   const nt={id:Date.now()+Math.random().toString(16).slice(2),symbol:s,type,qty,price,commission:com,date,notes:$('nts').value.trim()};
-  data.transactions.push(nt);data.wallet=r2((data.wallet||0)+cashEff(nt));
+  data.transactions.push(nt);data.wallet=r2((data.wallet||0)+cashEff(nt));recTradePrice(nt);
   save();e.target.reset();$('dt').value=day(new Date());$('com').value=0;$('net').value='';$('com').style.outline='';renderAll();toast('✅ Trade saved');
 });
 function quick(s,t){go('trade');$('sym').value=s;$('typ').value=t;hint();autoQty();$('qty').focus();$('qty').select()}
@@ -449,6 +449,13 @@ function editComm(id){
 }
 /* cash effect of a trade: buy takes out qty*price+commission, sell brings in qty*price-commission */
 function cashEff(t){const g=t.qty*t.price,c=t.commission||0;return t.type==='buy'?-(g+c):g-c}
+/* a trade logs its price as that day's price (flagged src:'trade'); a real closing price saved later for the same day replaces it */
+function recTradePrice(t){
+  const today=day(new Date());if(t.date>today)return;
+  const L=hist(t.symbol);if(L.some(x=>day(x.t)===t.date&&x.src!=='trade'))return;
+  const iso=t.date===today?new Date().toISOString():new Date(t.date+'T15:00:00').toISOString();
+  setHist(t.symbol,L.filter(x=>day(x.t)!==t.date).concat({t:iso,p:t.price,src:'trade'}));
+}
 /* Net calculator: the final amount becomes the Net, and the difference is saved as Commission */
 let CT=null;
 const KEYS=[['C','C'],['(','('],[')',')'],['⌫','B'],['7','7'],['8','8'],['9','9'],['÷','/'],['4','4'],['5','5'],['6','6'],['×','*'],['1','1'],['2','2'],['3','3'],['−','-'],['0','0'],['.','.'],['=','='],['+','+']];
@@ -486,7 +493,12 @@ function delTx(id){
   const t=data.transactions.find(x=>x.id===id);if(!t)return;
   if(!confirm('Delete this trade? Its effect on your cash will be reversed.'))return;
   data.wallet=r2((data.wallet||0)-cashEff(t));
-  data.transactions=data.transactions.filter(x=>x.id!==id);save();renderAll();
+  data.transactions=data.transactions.filter(x=>x.id!==id);
+  if(!data.transactions.some(x=>x.symbol===t.symbol&&x.date===t.date)){
+    const L=hist(t.symbol),R=L.filter(x=>!(x.src==='trade'&&day(x.t)===t.date));
+    if(R.length!==L.length){setHist(t.symbol,R);if(!R.length){delete data.currentPrices[t.symbol];delete data.priceUpdatedAt[t.symbol]}}
+  }
+  save();renderAll();
 }
 
 /* ---------- Update prices ---------- */
